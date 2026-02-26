@@ -1,0 +1,15 @@
+.env
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Frontend (para que no pese ni cause conflictos)
+psych-saas-frontend/node_modules
+psych-saas-frontend/dist
+node_modules
+dist
+
+.git
+.gitignore
