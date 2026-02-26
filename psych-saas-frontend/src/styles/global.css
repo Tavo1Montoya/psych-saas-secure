@@ -1,0 +1,994 @@
+/* =========================
+   GLOBAL THEME (Lila pastel)
+   Paleta:
+   1) #b687fd
+   2) #c8a0fe
+   3) #dbb9fe
+   4) #edd1ff
+   5) #ffeaff
+   ========================= */
+
+:root{
+  /* Fuente (NO cambiar) */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+
+  /* ✅ Paleta del usuario */
+  --p1: #b687fd;
+  --p2: #c8a0fe;
+  --p3: #dbb9fe;
+  --p4: #edd1ff;
+  --p5: #ffeaff;
+
+  /* Texto (para contraste) */
+  --text: #1f2430;
+  --muted: rgba(31,36,48,.68);
+
+  /* Líneas / sombras */
+  --line: rgba(31,36,48,.10);
+  --line2: rgba(31,36,48,.14);
+
+  --shadowSoft: 0 10px 26px rgba(31,36,48,.10);
+  --shadow:     0 18px 50px rgba(31,36,48,.16);
+
+  --radius: 18px;
+  --radius2: 12px;
+
+  /* Glow / Focus (lila) */
+  --glow: rgba(182,135,253,.45);   /* p1 */
+  --glow2: rgba(200,160,254,.45);  /* p2 */
+
+  /* Estados (no agresivos) */
+  --ok: #1fa971;
+  --warn: #c98a00;
+  --Advertencia: #d9486f;
+
+  /* “Flotar” */
+  --lift: translateY(-2px);
+}
+
+*{ box-sizing:border-box; }
+html,body,#root{ height:100%; }
+
+body{
+  margin:0;
+  font-family:var(--font);
+  color:var(--text);
+
+  /* ✅ Fondo general con tu paleta */
+  background:
+    radial-gradient(900px 620px at 12% 12%, rgba(182,135,253,.35), transparent 62%),
+    radial-gradient(900px 620px at 88% 18%, rgba(200,160,254,.30), transparent 62%),
+    radial-gradient(820px 560px at 60% 90%, rgba(237,209,255,.55), transparent 62%),
+    linear-gradient(160deg, var(--p5) 0%, #ffffff 35%, var(--p4) 100%);
+  background-attachment: fixed;
+}
+
+a{ color:inherit; text-decoration:none; }
+
+.container{ max-width:1100px; margin:0 auto; padding:24px; }
+.grid{ display:grid; gap:16px; }
+.row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.spacer{ flex:1; }
+
+.h1{ font-size:22px; margin:0; letter-spacing:.2px; }
+.p{ color:var(--muted); margin:6px 0 0; font-size:13px; }
+.label{ font-size:12px; color:var(--muted); margin:10px 0 6px; display:block; }
+
+/* =========================
+   CARDS (vidrio suave)
+   ========================= */
+.card{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.68));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadowSoft);
+  backdrop-filter: blur(12px);
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, filter .14s ease;
+}
+
+.card:hover{
+  transform: var(--lift);
+  box-shadow: var(--shadow);
+  border-color: rgba(182,135,253,.30);
+  filter: saturate(1.03);
+}
+
+.cardPad{ padding:16px; }
+
+/* =========================
+   BOTONES (dinámicos)
+   ========================= */
+.btn{
+  border:1px solid var(--line2);
+  background: rgba(255,255,255,.70);
+  color: var(--text);
+  padding:10px 12px;
+  border-radius: 12px;
+  cursor:pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+
+.btn:hover{
+  transform: var(--lift);
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 10px 24px rgba(31,36,48,.12);
+  border-color: rgba(31,36,48,.18);
+}
+
+.btn:active{ transform: translateY(0px); }
+
+.btn:focus-visible{
+  outline:none;
+  box-shadow: 0 0 0 3px var(--glow);
+  border-color: rgba(182,135,253,.55);
+}
+
+.btnPrimary{
+  background: linear-gradient(90deg, var(--p1), var(--p2));
+  border-color: rgba(182,135,253,.55);
+  color: #1c1328;
+  font-weight: 800;
+  box-shadow: 0 14px 30px rgba(182,135,253,.22);
+}
+
+.btnPrimary:hover{
+  box-shadow: 0 18px 40px rgba(182,135,253,.28);
+  filter: saturate(1.06);
+}
+
+.btnDanger{
+  background: linear-gradient(90deg, rgba(255,255,255,.78), rgba(237,209,255,.68));
+  border-color: rgba(217,72,111,.22);
+  color: #2b1b22;
+}
+
+.btnDanger:hover{
+  box-shadow: 0 16px 34px rgba(217,72,111,.14);
+}
+
+/* =========================
+   INPUTS / SELECT / TEXTAREA
+   (esto cubre también login)
+   ========================= */
+.input, .select, .textarea{
+  width:100%;
+  border:1px solid var(--line2);
+  background: rgba(255,255,255,.78);
+  color: var(--text);
+  padding:10px 12px;
+  border-radius: 12px;
+  outline:none;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.textarea{ min-height:90px; resize:vertical; }
+
+.input:focus, .select:focus, .textarea:focus{
+  border-color: rgba(182,135,253,.60);
+  box-shadow: 0 0 0 3px var(--glow2);
+  background: rgba(255,255,255,.90);
+}
+
+/* Opciones del dropdown (para que no se vean raras) */
+select option{
+  background-color: #ffffff;
+  color: #1f2430;
+}
+
+/* =========================
+   TABLAS
+   ========================= */
+.table{
+  width:100%;
+  border-collapse: collapse;
+  overflow:hidden;
+  border-radius: 12px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.70);
+}
+
+.table th,.table td{
+  padding:10px 10px;
+  border-bottom: 1px solid rgba(31,36,48,.08);
+  text-align:left;
+  font-size:13px;
+}
+
+.table th{
+  color: rgba(31,36,48,.62);
+  font-weight:700;
+}
+
+.table tr:hover td{
+  background: rgba(219,185,254,.25); /* p3 */
+}
+
+/* =========================
+   BADGES
+   ========================= */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid rgba(31,36,48,.12);
+  background: rgba(255,255,255,.75);
+}
+
+.badgeOk{
+  border-color: rgba(31,169,113,.22);
+  background: rgba(200,160,254,.22);
+  color:#1d2030;
+}
+
+.badgeWarn{
+  border-color: rgba(201,138,0,.20);
+  background: rgba(237,209,255,.40);
+  color:#3a2a10;
+}
+
+.badgeDanger{
+  border-color: rgba(217,72,111,.22);
+  background: rgba(219,185,254,.35);
+  color:#2b1420;
+}
+
+/* =========================
+   LAYOUT / TOPBAR
+   ========================= */
+.layout{
+  display:flex;
+  height:100%;
+}
+
+.content{
+  flex:1;
+  overflow:auto;
+}
+
+/* Topbar con vidrio + degradado lila */
+.topbar{
+  padding:16px 18px;
+  border-bottom: 1px solid rgba(31,36,48,.08);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.55), rgba(237,209,255,.42));
+  backdrop-filter: blur(12px);
+}
+
+/* =========================
+   SIDEBAR (más pastel)
+   ========================= */
+.sidebar{
+  width:260px;
+  padding:16px;
+  border-right: 1px solid rgba(31,36,48,.08);
+
+  background:
+    radial-gradient(520px 360px at 30% 10%, rgba(182,135,253,.30), transparent 60%),
+    radial-gradient(520px 360px at 70% 30%, rgba(200,160,254,.28), transparent 62%),
+    radial-gradient(520px 360px at 50% 92%, rgba(255,234,255,.80), transparent 62%),
+    rgba(255,255,255,.50);
+
+  backdrop-filter: blur(14px);
+}
+
+/* items */
+.sideItem{
+  padding:10px 12px;
+  border-radius: 12px;
+  border:1px solid transparent;
+  color: rgba(31,36,48,.72);
+  display:flex; gap:10px; align-items:center;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.sideItem:hover{
+  background: rgba(255,255,255,.70);
+  transform: var(--lift);
+  border-color: rgba(182,135,253,.18);
+  box-shadow: 0 10px 22px rgba(31,36,48,.10);
+}
+
+/* activo */
+.sideActive{
+  background: linear-gradient(90deg, rgba(182,135,253,.28), rgba(200,160,254,.22));
+  border-color: rgba(182,135,253,.40);
+  color: #1c1328;
+  font-weight: 900;
+  box-shadow: 0 14px 30px rgba(182,135,253,.18);
+}
+
+/* =========================
+   MODAL (contraste y bonito)
+   ========================= */
+.modalBackdrop{
+  position:fixed; inset:0;
+  background: rgba(20,18,30,.35);
+  display:flex; align-items:center; justify-content:center;
+  padding:18px;
+}
+
+.modal{
+  width:min(720px, 100%);
+  background:
+    radial-gradient(700px 300px at 18% 0%, rgba(182,135,253,.25), transparent 55%),
+    radial-gradient(700px 300px at 92% 10%, rgba(200,160,254,.22), transparent 55%),
+    rgba(255,255,255,.93);
+  border: 1px solid rgba(31,36,48,.10);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(31,36,48,.22);
+  color: var(--text);
+  animation: pop .14s ease-out;
+}
+
+@keyframes pop{
+  from{ transform: translateY(8px); }
+  to{ transform: translateY(0); }
+}
+
+.modalHeader{
+  padding:14px 16px;
+  border-bottom: 1px solid rgba(31,36,48,.08);
+}
+
+.modalBody{ padding:16px; }
+
+.modalFooter{
+  padding:14px 16px;
+  border-top: 1px solid rgba(31,36,48,.08);
+  display:flex; gap:10px; justify-content:flex-end;
+}
+
+/* =========================
+   ACCESIBILIDAD / FOCUS LINKS
+   ========================= */
+a:focus-visible{
+  outline:none;
+  box-shadow: 0 0 0 3px var(--glow2);
+  border-radius: 10px;
+}
+/* Animación específica para selects tipo rango */
+.select {
+  appearance: none;
+  background:
+    linear-gradient(90deg, #b687fd, #c8a0fe);
+  color: #1f2430;
+  font-weight: 700;
+  padding-right: 32px;
+  border: none;
+  box-shadow: 0 10px 25px rgba(182,135,253,.25);
+}
+
+.select:hover,
+select:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(182,135,253,.25);
+  border-color: rgba(182,135,253,.50);
+}
+
+.select:focus,
+select:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 3px rgba(182,135,253,.35);
+}
+.toast.success {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: white;
+}
+
+.toast.success .badge {
+  background: rgba(255,255,255,0.2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* =========================
+   ✅ Responsive Layout
+========================= */
+
+/* Botón icono simple (hamburguesa) */
+.btnIcon {
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.6);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+/* Por defecto NO se ve en desktop */
+.mobileOnly {
+  display: none;
+}
+
+/* Footer fijo dentro del sidebar */
+.sidebarFooter {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Overlay (solo cuando sidebar está abierto en móvil) */
+.sidebarOverlay {
+  display: none;
+}
+
+/* =========================
+   ✅ Mobile: <= 900px
+========================= */
+@media (max-width: 900px) {
+  .mobileOnly {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Layout pasa a ocupar todo */
+  .layout {
+    display: block;
+  }
+
+  /* Sidebar se convierte en drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 82vw;
+    max-width: 320px;
+    z-index: 9999;
+
+    transform: translateX(-110%);
+    transition: transform 0.2s ease;
+    overflow-y: auto;
+
+    /* importante para que el footer quede abajo */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar.isOpen {
+    transform: translateX(0);
+  }
+
+  /* Overlay se muestra en móvil */
+  .sidebarOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.25);
+    z-index: 9998;
+  }
+
+  /* El contenido ya no debe dejar espacio al sidebar */
+  .content {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  /* Topbar más compacto */
+  .topbar {
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Contenedor con padding móvil */
+  .container {
+    padding: 12px !important;
+  }
+}
+
+/* =========================
+   ✅ Tablas/Lists en móvil: evitar desbordes
+========================= */
+@media (max-width: 900px) {
+  table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+/* ✅ Wrapper para tablas anchas (móvil-friendly) */
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ Evita que la tabla se aplaste demasiado */
+.tableWrap table {
+  min-width: 780px; /* Ajustable */
+  width: 100%;
+}
+/* ==============================
+   ✅ Responsive Tabla Pacientes
+   ============================== */
+
+.tableWrap{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Evita que la tabla se aplaste demasiado */
+.patientsTable{
+  min-width: 650px;
+}
+
+/* En pantallas pequeñas ocultamos columnas pesadas */
+@media (max-width: 600px){
+
+  /* Oculta Teléfono (col 4) y Nacimiento (col 5) */
+  .patientsTable th:nth-child(4),
+  .patientsTable td:nth-child(4),
+  .patientsTable th:nth-child(5),
+  .patientsTable td:nth-child(5){
+    display: none;
+  }
+
+  .patientsTable th,
+  .patientsTable td{
+    padding: 10px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+}
+/* ==============================
+   ✅ Responsive header Pacientes
+   ============================== */
+@media (max-width: 600px) {
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* ✅ Evita que el botón se estire */
+  .pageHeader .btnInline,
+  .btnInline {
+    width: fit-content;
+    align-self: flex-start;
+  }
+
+  /* (Opcional) si tienes .spacer y te mete espacio raro en móvil */
+  .pageHeader .spacer {
+    display: none;
+  }
+}
+  
+  /* Evita que el botón se ponga a lo ancho */
+  .pageHeader .btnInline {
+    width: fit-content;
+  }
+
+  /* Si tu tabla se aplasta, fuerza un ancho mínimo para que use scroll */
+  .table {
+    min-width: 600px;
+  }
+
+
+  .patientsHeader .spacer{
+    display: none;
+  }
+
+  /* el botón + Nuevo ocupa todo el ancho en móvil */
+  .patientsHeader .btn{
+    width: 100%;
+  }
+
+
+.patientsHeader .btn{
+  padding: 10px 14px;
+}
+/* ✅ Para que el botón NO se estire en móvil */
+.btnInline {
+  width: fit-content;
+  align-self: flex-start;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;          /* ✅ scroll horizontal en móvil */
+  -webkit-overflow-scrolling: touch;
+}
+
+.tableWrap .table {
+  min-width: 720px;          /* ✅ evita que se aplaste feo */
+}
+/* =========================
+   ✅ Login centrado limpio
+========================= */
+
+.authWrap{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.authCard{
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Branding */
+.authBrand{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.authLogo{
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(140,110,255,0.15);
+  font-size: 22px;
+}
+
+.authName{
+  font-weight: 800;
+}
+
+.authDesc{
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.authTitle{
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+/* Form */
+.authForm{
+  display: grid;
+  gap: 12px;
+}
+
+/* 🔹 Mantener inputs blancos */
+.input{
+  background: #ffffff !important;
+}
+
+/* Error */
+.authError{
+  color: crimson;
+  font-size: 14px;
+}
+
+/* Footer */
+.authFooter{
+  text-align: center;
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* =========================
+   LOGIN UI (estilo imagen)
+========================= */
+
+/* Accesibilidad: label invisible */
+.srOnly{
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.loginPage{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f3ecfb;
+  /* tu imagen de referencia */
+  background-image: url("/src/assets/login-bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.loginShell{
+  width: min(560px, 100%);
+  display: grid;
+  gap: 16px;
+}
+
+/* Marca superior */
+.loginBrand{
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  color: #3a2d52;
+}
+
+.brandLogo{
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.85);
+  border: 1px solid rgba(160,120,210,.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 6px rgba(180,150,230,.15),
+    0 15px 40px rgba(80,50,120,.20);
+}
+
+.psi{
+  font-family: 'Poppins', serif;
+  font-size: 44px;
+  font-weight: 900;
+  color: #2f2348;
+  letter-spacing: 1px;
+}
+.brandTitle{
+  font-weight: 900;
+  letter-spacing: .8px;
+  font-size: 22px;
+}
+
+.brandSub{
+  opacity: .85;
+  font-size: 14px;
+}
+
+/* Card central */
+.loginCard{
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(120, 86, 170, .18);
+  border-radius: 18px;
+  padding: 22px 18px;
+  box-shadow: 0 22px 60px rgba(66, 38, 110, .16);
+  backdrop-filter: blur(8px);
+}
+
+.loginCardTitle{
+  font-size: 26px;
+  font-weight: 900;
+  text-align: center;
+  color: #3a2d52;
+}
+
+.loginCardSub{
+  text-align: center;
+  margin-top: 6px;
+  margin-bottom: 16px;
+  color: rgba(58,45,82,.75);
+}
+
+.loginForm{
+  display: grid;
+  gap: 12px;
+}
+
+/* Input shell con icono */
+.inputShell{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(120, 86, 170, .20);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.92); /* ✅ blanco */
+}
+
+.inputIcon{
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(144, 104, 200, .10);
+  display: grid;
+  place-items: center;
+  color: rgba(58,45,82,.85);
+}
+
+/* ✅ Evitar amarillo: forzamos fondo y color */
+.loginInput{
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #2e2442;
+  font-size: 15px;
+}
+
+.loginInput::placeholder{
+  color: rgba(58,45,82,.55);
+}
+
+/* botón ojo */
+.iconBtn{
+  border: 0;
+  background: transparent;
+  color: rgba(58,45,82,.7);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 10px;
+}
+
+.iconBtn:hover{
+  background: rgba(144, 104, 200, .12);
+}
+
+.loginError{
+  color: #b00020;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(176,0,32,.08);
+  border: 1px solid rgba(176,0,32,.15);
+}
+
+/* Botón principal */
+.loginBtn{
+  margin-top: 6px;
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 16px;
+  color: white;
+  background: linear-gradient(90deg, rgba(166,127,224,1), rgba(189,148,236,1));
+  box-shadow: 0 14px 28px rgba(125, 70, 190, .25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.loginBtn:disabled{
+  opacity: .7;
+  cursor: not-allowed;
+}
+
+.loginArrow{
+  font-size: 20px;
+  transform: translateY(-1px);
+}
+
+/* Row recordar/forgot */
+.loginRow{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.remember{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(58,45,82,.75);
+  font-weight: 600;
+}
+
+.linkBtn{
+  border: 0;
+  background: transparent;
+  color: rgba(107, 70, 170, 1);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.linkBtn:hover{
+  text-decoration: underline;
+}
+
+.linkBtn.strong{
+  font-weight: 900;
+}
+
+/* Divider */
+.divider{
+  margin-top: 8px;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.divider::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(120, 86, 170, .20);
+}
+
+.divider span{
+  position: relative;
+  padding: 0 10px;
+  background: rgba(255,255,255,.72);
+  color: rgba(58,45,82,.65);
+  font-weight: 700;
+}
+
+/* Social buttons */
+.socialRow{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.socialBtn{
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 86, 170, .20);
+  background: rgba(255,255,255,.92);
+  cursor: pointer;
+  font-weight: 800;
+  color: rgba(58,45,82,.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.socialBtn:hover{
+  background: rgba(255,255,255,1);
+}
+
+/* mini dots */
+.socialDot{
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.socialDot.g{ background: #ea4335; }
+.socialDot.m{ background: #0078d4; }
+
+/* Footer */
+.loginFooter{
+  text-align: center;
+  color: rgba(58,45,82,.78);
+  display: grid;
+  gap: 8px;
+}
+
+.footerLine{
+  font-weight: 700;
+}
+
+.footerMini{
+  font-size: 12px;
+  opacity: .85;
+}
+
+/* Responsive: en móvil ajusta */
+@media (max-width: 520px){
+  .loginCard{
+    padding: 18px 14px;
+  }
+  .socialRow{
+    grid-template-columns: 1fr;
+  }
+}
