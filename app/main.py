@@ -37,7 +37,11 @@ from app.routers.timeline import router as timeline_router
 app = FastAPI(title="Psych SaaS API")
 
 # ✅ CORS: Mantenemos el "*" para evitar bloqueos
-origins = ["*"]
+origins = [
+    "http://localhost:5173",
+    "https://frontend-production-24ac.up.railway.app", # URL de tu frontend
+    "*", 
+]
 
 app.add_middleware(
     CORSMiddleware,
