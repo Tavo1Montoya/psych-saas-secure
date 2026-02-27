@@ -28,11 +28,17 @@ const api = axios.create({
 // ✅ Request interceptor: agrega token si existe
 api.interceptors.request.use(
   (config) => {
+    // Asegura headers (por seguridad)
+    config.headers = config.headers ?? {};
+
     const token =
       localStorage.getItem("token") || localStorage.getItem("access_token");
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      // si no hay token, no forces Authorization viejo
+      delete config.headers.Authorization;
     }
 
     return config;
@@ -40,7 +46,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ Response interceptor: si token expira => logout suave
+// ✅ Response interceptor: si token expira => logout suave (sin loop)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -50,7 +56,11 @@ api.interceptors.response.use(
       localStorage.removeItem("token");
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+
+      // Evita loop si ya estás en /login
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
 
     return Promise.reject(error);
