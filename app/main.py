@@ -1,43 +1,25 @@
-# ✅ Base y engine ÚNICOS (no duplicados)
+import os
+from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+
+# Cargar variables (Railway ya las inyecta, pero esto no estorba)
 load_dotenv()
+
+# ✅ Base y engine
 from app.db.base_class import Base
 from app.db.session import engine
 
-# ✅ Importar modelos para que SQLAlchemy registre las tablas
+# ✅ Importar modelos (Importante para SQLAlchemy)
 from app.models.user import User
 from app.models.patient import Patient
 from app.models.appointment import Appointment
 from app.models.note import Note
 from app.models.clinic_settings import ClinicSettings
 from app.models.appointment_block import AppointmentBlock
+
+# ✅ Importar Routers
 from app.routers import admin_users
-
-from fastapi import APIRouter
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-router = APIRouter()
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ✅ aquí ya van tus include_router(...) tal como los tienes
-
-# Si ya tienes Note model, importa también:
-# from app.models.note import Note
-
-# ✅ Routers (sin duplicados)
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.users import router as users_router
@@ -51,23 +33,42 @@ from app.routers.appointment_blocks import router as appointment_blocks_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.timeline import router as timeline_router
 
+app = FastAPI(title="Psych SaaS API")
 
+# ✅ Configuración de CORS: Agregué "*" para que Railway no te bloquee el Frontend
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "*", # Permite que el dominio de Railway del frontend se conecte
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# ✅ Evento de Inicio: Esto evita que la app se muera si la DB tarda en responder
+@app.on_event("startup")
+def startup_event():
+    try:
+        with engine.connect() as connection:
+            print("--- Conexión a Base de Datos EXITOSA ---")
+    except Exception as e:
+        print(f"--- ERROR conectando a la DB: {e} ---")
+
+# ✅ Rutas de salud (Solo una de cada una, eliminé duplicados)
 @app.get("/")
 def root():
-    return {"message": "API funcionando correctamente"}
-
-@app.get("/")
-def root():
-    return {"message": "Psych SaaS API running"}
+    return {"status": "online", "message": "Psych SaaS API running"}
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-
-# ✅ Registrar routers
+# ✅ Registrar routers (Manteniendo tu orden)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(users_router)
