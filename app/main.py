@@ -58,6 +58,14 @@ from app.routers.timeline import router as timeline_router
 def root():
     return {"message": "API funcionando correctamente"}
 
+@app.get("/")
+def root():
+    return {"message": "Psych SaaS API running"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 # ✅ Registrar routers
 app.include_router(auth_router)
