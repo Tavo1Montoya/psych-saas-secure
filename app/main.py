@@ -1,5 +1,4 @@
 # ✅ Base y engine ÚNICOS (no duplicados)
-from app.main import app
 from dotenv import load_dotenv
 load_dotenv()
 from app.db.base_class import Base
