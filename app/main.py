@@ -1,16 +1,17 @@
 import os
+import uvicorn
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-# Cargar variables (Railway ya las inyecta, pero esto no estorba)
+# Cargar variables
 load_dotenv()
 
 # ✅ Base y engine
 from app.db.base_class import Base
 from app.db.session import engine
 
-# ✅ Importar modelos (Importante para SQLAlchemy)
+# ✅ Importar modelos
 from app.models.user import User
 from app.models.patient import Patient
 from app.models.appointment import Appointment
@@ -35,12 +36,8 @@ from app.routers.timeline import router as timeline_router
 
 app = FastAPI(title="Psych SaaS API")
 
-# ✅ Configuración de CORS: Agregué "*" para que Railway no te bloquee el Frontend
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "*", # Permite que el dominio de Railway del frontend se conecte
-]
+# ✅ CORS: Mantenemos el "*" para evitar bloqueos
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +47,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Evento de Inicio: Esto evita que la app se muera si la DB tarda en responder
 @app.on_event("startup")
 def startup_event():
     try:
@@ -59,7 +55,6 @@ def startup_event():
     except Exception as e:
         print(f"--- ERROR conectando a la DB: {e} ---")
 
-# ✅ Rutas de salud (Solo una de cada una, eliminé duplicados)
 @app.get("/")
 def root():
     return {"status": "online", "message": "Psych SaaS API running"}
@@ -68,7 +63,7 @@ def root():
 def health():
     return {"status": "ok"}
 
-# ✅ Registrar routers (Manteniendo tu orden)
+# ✅ Registro de Routers
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(users_router)
@@ -82,3 +77,9 @@ app.include_router(appointment_blocks_router)
 app.include_router(dashboard_router)
 app.include_router(timeline_router)
 app.include_router(admin_users.router)
+
+# ✅ Bloque Maestro para Railway
+# Esto asegura que la app lea el puerto correcto aunque el Procfile falle
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
