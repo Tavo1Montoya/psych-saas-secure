@@ -12,4 +12,6 @@ COPY . /app
 ENV PYTHONUNBUFFERED=1
 
 # Railway te da el puerto en la variable PORT
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Elimina los corchetes y el ["sh", "-c"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
