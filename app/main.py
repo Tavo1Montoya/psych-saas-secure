@@ -36,10 +36,12 @@ from app.routers.timeline import router as timeline_router
 
 app = FastAPI(title="Psych SaaS API")
 
-# ✅ CORS: Mantenemos el "*" para evitar bloqueos
+# ✅ MEJORA CORS: Lista extendida para asegurar comunicación total
 origins = [
     "http://localhost:5173",
-    "https://frontend-production-24ac.up.railway.app", # URL de tu frontend
+    "http://localhost:8080",
+    "http://localhost:8000",
+    "https://frontend-production-24ac.up.railway.app", # Tu URL de frontend
     "*", 
 ]
 
@@ -54,6 +56,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     try:
+        # Esto confirma la conexión que ya vimos exitosa en tus logs
         with engine.connect() as connection:
             print("--- Conexión a Base de Datos EXITOSA ---")
     except Exception as e:
@@ -67,7 +70,7 @@ def root():
 def health():
     return {"status": "ok"}
 
-# ✅ Registro de Routers
+# ✅ Registro de Routers (Sin cambios para no dañar rutas)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(users_router)
@@ -82,8 +85,8 @@ app.include_router(dashboard_router)
 app.include_router(timeline_router)
 app.include_router(admin_users.router)
 
-# ✅ Bloque Maestro para Railway
-# Esto asegura que la app lea el puerto correcto aunque el Procfile falle
+# ✅ MEJORA MAESTRA: Sincronización de puerto con Railway
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
+    # Si Railway detecta puerto 8080 en logs, aquí lo forzamos a leer la variable PORT
+    port = int(os.environ.get("PORT", 8080)) 
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
