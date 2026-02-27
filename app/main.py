@@ -13,11 +13,12 @@ from app.models.clinic_settings import ClinicSettings
 from app.models.appointment_block import AppointmentBlock
 from app.routers import admin_users
 
+from fastapi import APIRouter
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-
+router = APIrouter()
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
