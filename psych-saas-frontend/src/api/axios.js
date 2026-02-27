@@ -2,16 +2,16 @@
 import axios from "axios";
 
 /**
- * 1) Lee VITE_API_URL si existe.
- * 2) Si no existe, usa localhost:8000
- * 3) Normaliza:
- *    - Si viene sin "http", lo agrega.
- *    - Quita "/" final para evitar dobles // en rutas.
+ * 1) Lee VITE_API_URL desde Railway.
+ * 2) Si no existe, usa localhost:8000 para desarrollo local.
  */
 let API_URL = import.meta.env.VITE_API_URL?.trim() || "http://localhost:8000";
 
+// ✅ MEJORA: Solo forzamos http si es localhost. 
+// Para Railway, dejamos que use el protocolo que viene en la variable (que es https).
 if (!/^https?:\/\//i.test(API_URL)) {
-  API_URL = `http://${API_URL}`;
+  const protocol = API_URL.includes("localhost") ? "http://" : "https://";
+  API_URL = `${protocol}${API_URL}`;
 }
 
 API_URL = API_URL.replace(/\/+$/, ""); // quita slash(es) al final
@@ -22,13 +22,12 @@ const api = axios.create({
     Accept: "application/json",
     "Content-Type": "application/json",
   },
-  withCredentials: false, // correcto si NO estás usando cookies
+  withCredentials: false, 
 });
 
 // ✅ Request interceptor: agrega token si existe
 api.interceptors.request.use(
   (config) => {
-    // Asegura headers (por seguridad)
     config.headers = config.headers ?? {};
 
     const token =
@@ -36,9 +35,6 @@ api.interceptors.request.use(
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      // si no hay token, no forces Authorization viejo
-      delete config.headers.Authorization;
     }
 
     return config;
@@ -46,7 +42,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ Response interceptor: si token expira => logout suave (sin loop)
+// ✅ Response interceptor: manejo de 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -57,7 +53,6 @@ api.interceptors.response.use(
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
 
-      // Evita loop si ya estás en /login
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
