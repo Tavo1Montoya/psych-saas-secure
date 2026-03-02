@@ -17,7 +17,7 @@ ALLOWED_ROLES = ["admin", "psychologist", "assistant"]
 
 
 # =========================
-# Helpers (1 psicóloga)
+# Helpers (owner real por assistant)
 # =========================
 def _calc_age(birth_date: date) -> int:
     """Calcula edad a partir de birth_date (date)."""
@@ -28,30 +28,38 @@ def _calc_age(birth_date: date) -> int:
     return max(years, 0)
 
 
-def get_owner_user(db: Session) -> User:
-    """
-    Obtiene a la psicóloga (única).
-    ✅ Igual que en appointments: debe existir y estar activa.
-    """
-    owner = (
-        db.query(User)
-        .filter(User.role == "psychologist", User.is_active == True)
-        .first()
-    )
-    if not owner:
-        raise HTTPException(status_code=500, detail="No existe usuario con rol 'psychologist'")
-    return owner
-
-
 def get_target_user_id(db: Session, current_user: User) -> int:
     """
     Propietario objetivo:
     - psychologist: ella misma
-    - assistant: psicóloga (owner)
+    - assistant: su owner_user_id (la psicóloga asignada)
     - admin: admin (pero admin ve todo en list)
     """
     if current_user.role == "assistant":
-        return get_owner_user(db).id
+        # ✅ IMPORTANTÍSIMO: ya NO buscamos "la primera psych".
+        # La assistant DEBE estar ligada a una psicóloga.
+        if not getattr(current_user, "owner_user_id", None):
+            raise HTTPException(
+                status_code=400,
+                detail="Esta assistant no tiene psicóloga asignada (owner_user_id)."
+            )
+
+        # ✅ Validar que la psicóloga exista y esté activa
+        owner = db.query(User).filter(
+            User.id == current_user.owner_user_id,
+            User.role == "psychologist",
+            User.is_active == True
+        ).first()
+
+        if not owner:
+            raise HTTPException(
+                status_code=400,
+                detail="La psicóloga asignada a esta assistant no existe o está inactiva."
+            )
+
+        return owner.id
+
+    # psychologist o admin
     return current_user.id
 
 
@@ -59,7 +67,7 @@ def _patient_access_query(db: Session, current_user: User, patient_id: int):
     """
     Admin: cualquier paciente activo
     Psychologist: sus pacientes
-    Assistant: pacientes de la psicóloga (owner)
+    Assistant: pacientes de SU psicóloga asignada (owner_user_id)
     """
     q = db.query(Patient).filter(
         Patient.id == patient_id,
@@ -105,7 +113,6 @@ def create_patient(
             detail="Debes enviar 'age' o 'birth_date' (para calcular edad)."
         )
 
-    # ✅ Crear paciente con ficha (TODOS opcionales, no rompe nada)
     new_patient = Patient(
         full_name=patient.full_name,
         age=resolved_age,
@@ -129,7 +136,9 @@ def create_patient(
         emergency_contact_name=getattr(patient, "emergency_contact_name", None),
         emergency_contact_phone=getattr(patient, "emergency_contact_phone", None),
 
-        user_id=target_user_id,     # ✅ assistant crea para la psicóloga
+        # ✅ SIEMPRE se guardan bajo la psicóloga objetivo correcta
+        user_id=target_user_id,
+
         created_by=current_user.id
     )
 
@@ -150,7 +159,7 @@ def get_patients(
     if current_user.role == "admin":
         return q.order_by(Patient.id.desc()).all()
 
-    # ✅ Otros roles: solo los del owner/agenda objetivo
+    # ✅ Psych / Assistant: solo los del owner objetivo
     target_user_id = get_target_user_id(db, current_user)
     return q.filter(Patient.user_id == target_user_id).order_by(Patient.id.desc()).all()
 
@@ -184,7 +193,6 @@ def update_patient(
     if "birth_date" in data and data.get("birth_date") and "age" not in data:
         data["age"] = _calc_age(data["birth_date"])
 
-    # ✅ Aplicar cambios (incluye ficha si viene en payload)
     for field, value in data.items():
         setattr(patient, field, value)
 
@@ -208,12 +216,10 @@ def delete_patient(
 
     now = datetime.utcnow()
 
-    # 1) Desactivar paciente (soft delete)
     patient.is_active = False
     patient.updated_by = current_user.id
     patient.updated_at = now
 
-    # 2) Desactivar TODAS las citas activas de ese paciente
     appts = db.query(Appointment).filter(
         Appointment.patient_id == patient_id,
         Appointment.is_active == True
@@ -221,11 +227,10 @@ def delete_patient(
 
     for ap in appts:
         ap.is_active = False
-        ap.status = "cancelled"   # para que quede coherente
+        ap.status = "cancelled"
         ap.updated_by = current_user.id
         ap.updated_at = now
 
-    # 3) Desactivar TODAS las notas activas de ese paciente
     notes = db.query(Note).filter(
         Note.patient_id == patient_id,
         Note.is_active == True
@@ -237,5 +242,4 @@ def delete_patient(
         n.updated_at = now
 
     db.commit()
-
     return {"message": "Paciente y registros relacionados desactivados correctamente"}

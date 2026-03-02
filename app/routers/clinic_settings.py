@@ -22,7 +22,7 @@ def get_settings(db: Session) -> ClinicSettings:
     settings = db.query(ClinicSettings).first()
     if not settings:
         settings = ClinicSettings(
-            start_time=time(9, 0),
+            start_time=time(8, 0),
             end_time=time(21, 0),
             mon=True, tue=True, wed=True, thu=True, fri=True, sat=True, sun=True
         )

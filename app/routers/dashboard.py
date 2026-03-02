@@ -81,7 +81,7 @@ def get_settings(db: Session) -> ClinicSettings:
         settings = db.query(ClinicSettings).first()
     except (ProgrammingError, OperationalError):
         return ClinicSettings(
-            start_time=time(9, 0),
+            start_time=time(8, 0),
             end_time=time(17, 0),
             mon=True,
             tue=True,
@@ -95,8 +95,8 @@ def get_settings(db: Session) -> ClinicSettings:
     if not settings:
         # Crear default si la tabla existe pero está vacía
         settings = ClinicSettings(
-            start_time=time(9, 0),
-            end_time=time(17, 0),
+            start_time=time(8, 0),
+            end_time=time(21, 0),
             mon=True,
             tue=True,
             wed=True,

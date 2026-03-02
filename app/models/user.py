@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, synonym
 from app.db.base_class import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -16,6 +17,31 @@ class User(Base):
 
     role = Column(String, default="assistant")
     is_active = Column(Boolean, default=True)
+
+    # =========================================================
+    # ✅ NUEVO: vínculo para que una assistant pertenezca a una psicóloga
+    # =========================================================
+    # - Si role == "assistant": aquí guardas el id de la psicóloga dueña
+    # - Si role == "psychologist" o "admin": puede quedar NULL
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relación: el "dueño" (psicóloga) de esta assistant
+    owner = relationship(
+        "User",
+        remote_side=[id],
+        foreign_keys=[owner_user_id],
+        back_populates="assistants",
+    )
+
+    # Relación inversa: psicóloga -> lista de assistants
+    assistants = relationship(
+        "User",
+        foreign_keys=[owner_user_id],
+        back_populates="owner",
+    )
+    # =========================================================
+    # ✅ Relaciones existentes (NO se dañan)
+    # =========================================================
 
     patients = relationship("Patient", back_populates="owner")
 
