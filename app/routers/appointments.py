@@ -187,9 +187,8 @@ def get_owner_user(db: Session) -> User:
     """
     Obtiene automáticamente a la psicóloga (role='psychologist').
 
-    ✅ IMPORTANTE:
-    Este sistema asume UNA sola psicóloga activa.
-    Si hay más de una, lanzamos error para evitar que la asistente apunte a otra agenda.
+    ✅ Este sistema asume UNA sola psicóloga activa.
+    Si hay más de una, lanza error para evitar que el assistant apunte a otra agenda.
     """
     owners = (
         db.query(User)
@@ -199,14 +198,14 @@ def get_owner_user(db: Session) -> User:
     )
 
     if len(owners) == 0:
-        raise HTTPException(status_code=500, detail="No existe usuario activo con rol 'psychologist'")
+        raise HTTPException(status_code=500, detail="No existe psicóloga activa en el sistema.")
 
     if len(owners) > 1:
         raise HTTPException(
             status_code=500,
             detail=(
-                "Hay MÁS de una psicóloga activa. Esto provoca que la asistente vea otra agenda. "
-                "Deja solo 1 psicóloga activa o implementa vínculo assistant->owner."
+                "Hay más de una psicóloga activa. Esto provoca que el assistant vea otra agenda. "
+                "Desactiva las de prueba y deja solo 1 activa."
             )
         )
 
