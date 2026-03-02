@@ -186,18 +186,31 @@ def _ensure_not_no_show(appt: Appointment):
 def get_owner_user(db: Session) -> User:
     """
     Obtiene automáticamente a la psicóloga (role='psychologist').
-    Este sistema asume UNA sola psicóloga.
+
+    ✅ IMPORTANTE:
+    Este sistema asume UNA sola psicóloga activa.
+    Si hay más de una, lanzamos error para evitar que la asistente apunte a otra agenda.
     """
-    owner = db.query(User).filter(
-        User.role == "psychologist",
-        User.is_active == True
-    ).first()
+    owners = (
+        db.query(User)
+        .filter(User.role == "psychologist", User.is_active == True)
+        .order_by(User.id.asc())
+        .all()
+    )
 
-    if not owner:
-        raise HTTPException(status_code=500, detail="No existe usuario con rol 'psychologist'")
+    if len(owners) == 0:
+        raise HTTPException(status_code=500, detail="No existe usuario activo con rol 'psychologist'")
 
-    return owner
+    if len(owners) > 1:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Hay MÁS de una psicóloga activa. Esto provoca que la asistente vea otra agenda. "
+                "Deja solo 1 psicóloga activa o implementa vínculo assistant->owner."
+            )
+        )
 
+    return owners[0]
 
 def get_target_user_id(db: Session, current_user: User) -> int:
     """
@@ -496,12 +509,17 @@ def get_availability(
     if duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="duration_minutes debe ser > 0")
 
+    # ✅ agenda objetivo (assistant -> psicóloga)
     target_user_id = get_target_user_id(db, current_user)
+
+    # ✅ settings de clínica
     settings = get_settings(db)
 
+    # ✅ rango de consulta (naive local del backend, pero normalizamos a UTC-aware donde toca)
     range_start_dt = datetime.combine(d_from, time(0, 0))
     range_end_dt = datetime.combine(d_to, time(23, 59, 59))
 
+    # ✅ Traer citas ACTIVAS agendadas (scheduled) dentro del rango
     appts = db.query(Appointment).filter(
         Appointment.is_active == True,
         Appointment.user_id == target_user_id,
@@ -510,11 +528,12 @@ def get_availability(
         Appointment.status.in_(["scheduled"])
     ).all()
 
+    # ✅ Guardar rangos de citas existentes en UTC-aware (evita issues naive/aware)
     appt_ranges = []
     for ap in appts:
-        ap_start = ap.start_time
-        ap_end = ap.start_time + timedelta(minutes=ap.duration_minutes)
-        appt_ranges.append((ap_start, ap_end))
+        ap_start_utc = _as_utc_aware(ap.start_time)
+        ap_end_utc = _as_utc_aware(ap.start_time + timedelta(minutes=ap.duration_minutes or 0))
+        appt_ranges.append((ap_start_utc, ap_end_utc))
 
     day_enabled_map = {
         0: settings.mon,
@@ -529,37 +548,54 @@ def get_availability(
     days_output = []
     cur = d_from
 
+    # ✅ “ahora” en UTC-aware
+    now_utc = datetime.now(timezone.utc)
+
     while cur <= d_to:
         weekday = cur.weekday()
+
+        # Día deshabilitado
         if not day_enabled_map.get(weekday, False):
             days_output.append({"date": cur.isoformat(), "slots": []})
             cur = cur + timedelta(days=1)
             continue
 
         day_slots = []
+
+        # ✅ inicio/fin del día según settings
         day_start_dt = datetime.combine(cur, settings.start_time)
         day_end_dt = datetime.combine(cur, settings.end_time)
 
+        # último inicio posible para que quepa duration_minutes
         last_start = day_end_dt - timedelta(minutes=duration_minutes)
 
         t = day_start_dt
+
         while t <= last_start:
             candidate_start = t
             candidate_end = t + timedelta(minutes=duration_minutes)
 
-            if candidate_start < datetime.utcnow():
+            # ✅ Normalizamos candidatos a UTC-aware para comparar con now_utc y appt_ranges
+            candidate_start_utc = _as_utc_aware(candidate_start)
+            candidate_end_utc = _as_utc_aware(candidate_end)
+
+            # 1️⃣ Saltar slots pasados
+            if candidate_start_utc < now_utc:
                 t += timedelta(minutes=slot_minutes)
                 continue
 
+            # 2️⃣ Revisar conflicto con citas existentes
             conflict = False
-            for (ap_start, ap_end) in appt_ranges:
-                if (candidate_start < ap_end) and (ap_start < candidate_end):
+            for (ap_start_utc, ap_end_utc) in appt_ranges:
+                if (candidate_start_utc < ap_end_utc) and (ap_start_utc < candidate_end_utc):
                     conflict = True
                     break
 
+            # 3️⃣ Si no hay conflicto, agregar slot
             if not conflict:
                 day_slots.append(candidate_start.time().strftime("%H:%M"))
 
+            # avanzar
             t += timedelta(minutes=slot_minutes)
 
         days_output.append({"date": cur.isoformat(), "slots": day_slots})
