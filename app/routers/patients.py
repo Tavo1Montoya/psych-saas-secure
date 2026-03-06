@@ -89,15 +89,15 @@ def create_patient(
     new_patient = Patient(
         full_name=patient.full_name,
         age=resolved_age,
-        phone=getattr(patient, "phone", None),
-        birth_date=getattr(patient, "birth_date", None),
-        notes=getattr(patient, "notes", None),
 
         # ✅ NUEVOS
         expediente_number=getattr(patient, "expediente_number", None),
         alias=getattr(patient, "alias", None),
 
-        # ✅ Ficha
+        phone=getattr(patient, "phone", None),
+        birth_date=getattr(patient, "birth_date", None),
+        notes=getattr(patient, "notes", None),
+
         sex=getattr(patient, "sex", None),
         marital_status=getattr(patient, "marital_status", None),
         occupation=getattr(patient, "occupation", None),
@@ -121,7 +121,6 @@ def create_patient(
     db.commit()
     db.refresh(new_patient)
     return new_patient
-
 
 @router.get("/", response_model=List[PatientResponse])
 def get_patients(

@@ -8,15 +8,18 @@ from datetime import date, datetime
 class PatientCreate(BaseModel):
     full_name: str = Field(..., min_length=1)
     age: Optional[int] = None
-    phone: Optional[str] = None
-    birth_date: Optional[date] = None
-    notes: Optional[str] = None
 
     # ✅ NUEVOS
     expediente_number: Optional[str] = None
     alias: Optional[str] = None
 
-    # ✅ FICHA DE IDENTIFICACIÓN (opcional)
+    phone: Optional[str] = None
+    birth_date: Optional[date] = None
+    notes: Optional[str] = None
+
+    # =========================
+    # FICHA DE IDENTIFICACIÓN
+    # =========================
     sex: Optional[str] = None
     marital_status: Optional[str] = None
     occupation: Optional[str] = None
@@ -36,15 +39,18 @@ class PatientCreate(BaseModel):
 class PatientUpdate(BaseModel):
     full_name: Optional[str] = None
     age: Optional[int] = None
-    phone: Optional[str] = None
-    birth_date: Optional[date] = None
-    notes: Optional[str] = None
 
     # ✅ NUEVOS
     expediente_number: Optional[str] = None
     alias: Optional[str] = None
 
-    # ✅ FICHA DE IDENTIFICACIÓN (opcional)
+    phone: Optional[str] = None
+    birth_date: Optional[date] = None
+    notes: Optional[str] = None
+
+    # =========================
+    # FICHA DE IDENTIFICACIÓN
+    # =========================
     sex: Optional[str] = None
     marital_status: Optional[str] = None
     occupation: Optional[str] = None
@@ -68,15 +74,18 @@ class PatientResponse(BaseModel):
     id: int
     full_name: str
     age: Optional[int] = None
+
+    # ✅ NUEVOS
+    expediente_number: Optional[str] = None
+    alias: Optional[str] = None
+
     phone: Optional[str] = None
     birth_date: Optional[date] = None
     notes: Optional[str] = None
 
-    # ✅ NUEVOS (se devuelven para mostrarlos en UI)
-    expediente_number: Optional[str] = None
-    alias: Optional[str] = None
-
-    # ✅ FICHA DE IDENTIFICACIÓN (salida)
+    # =========================
+    # FICHA DE IDENTIFICACIÓN
+    # =========================
     sex: Optional[str] = None
     marital_status: Optional[str] = None
     occupation: Optional[str] = None
