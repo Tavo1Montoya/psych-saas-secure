@@ -1,7 +1,9 @@
 import os
 import uvicorn
-from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, APIRouter
+from app.routers.calendar import router as calendar_router
+
 from dotenv import load_dotenv
 
 # Cargar variables
@@ -84,7 +86,7 @@ app.include_router(appointment_blocks_router)
 app.include_router(dashboard_router)
 app.include_router(timeline_router)
 app.include_router(admin_users.router)
-
+app.include_router(calendar_router)
 # ✅ MEJORA MAESTRA: Sincronización de puerto con Railway
 if __name__ == "__main__":
     # Si Railway detecta puerto 8080 en logs, aquí lo forzamos a leer la variable PORT

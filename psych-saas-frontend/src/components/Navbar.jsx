@@ -10,9 +10,26 @@ export default function Navbar({ onLogout, user }) {
       <Link to="/appointments">Appointments</Link>
       <Link to="/notes">Notes</Link>
 
-      <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
-        <span>{user?.email} ({user?.role})</span>
-        <button onClick={onLogout}>Logout</button>
+      <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span>
+            {user?.email} ({user?.role})
+          </span>
+          <button onClick={onLogout}>Logout</button>
+        </div>
+
+        {/* ✅ Aviso de privacidad debajo del botón */}
+        <Link
+          to="/privacy"
+          style={{
+            fontSize: 12,
+            opacity: 0.8,
+            textDecoration: "underline",
+            color: "#333",
+          }}
+        >
+          Aviso de privacidad
+        </Link>
       </div>
     </div>
   );

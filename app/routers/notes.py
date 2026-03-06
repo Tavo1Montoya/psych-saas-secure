@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from app.db.deps import get_db
@@ -14,6 +14,7 @@ from app.schemas.note import NoteCreate, NoteUpdate, NoteResponse
 router = APIRouter(prefix="/notes", tags=["Notes"])
 
 ALLOWED_ROLES = ["admin", "psychologist", "assistant"]
+
 
 # =========================
 # Helpers para "1 psicóloga"
@@ -30,23 +31,12 @@ def get_owner_user(db: Session) -> User:
 
 
 def get_target_user_id(db: Session, current_user: User) -> int:
-    """
-    Define a quién pertenece la agenda clínica:
-    - psychologist: su propia agenda
-    - assistant: agenda de la psicóloga (owner)
-    - admin: admin ve todo (pero aquí usamos current_user.id si se requiere)
-    """
     if current_user.role == "assistant":
         return get_owner_user(db).id
     return current_user.id
 
 
 def _appointment_access_query(db: Session, current_user: User, appointment_id: int):
-    """
-    Admin: puede acceder a cualquier cita activa
-    Psychologist: solo su agenda
-    Assistant: agenda de la psicóloga
-    """
     query = db.query(Appointment).filter(
         Appointment.id == appointment_id,
         Appointment.is_active == True
@@ -60,11 +50,6 @@ def _appointment_access_query(db: Session, current_user: User, appointment_id: i
 
 
 def _patient_access_query(db: Session, current_user: User, patient_id: int):
-    """
-    Admin: cualquier paciente activo
-    Psychologist: sus pacientes
-    Assistant: pacientes de la psicóloga (owner)
-    """
     query = db.query(Patient).filter(
         Patient.id == patient_id,
         Patient.is_active == True
@@ -76,6 +61,40 @@ def _patient_access_query(db: Session, current_user: User, patient_id: int):
     target_user_id = get_target_user_id(db, current_user)
     return query.filter(Patient.user_id == target_user_id)
 
+
+def _validate_note_payload(
+    note_type: Optional[str],
+    subjective: Optional[str],
+    objective: Optional[str],
+    assessment: Optional[str],
+    plan: Optional[str],
+    content: Optional[str],
+):
+    final_type = note_type or "soap"
+
+    if final_type == "general":
+        if not content or not content.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Para note_type='general' debes enviar 'content'"
+            )
+        return
+
+    if final_type == "soap":
+        if not any([
+            (subjective and subjective.strip()),
+            (objective and objective.strip()),
+            (assessment and assessment.strip()),
+            (plan and plan.strip()),
+            (content and content.strip()),
+        ]):
+            raise HTTPException(
+                status_code=400,
+                detail="Para note_type='soap' debes enviar al menos un campo (subjective/objective/assessment/plan/content)"
+            )
+        return
+
+
 # =========================
 # Endpoints
 # =========================
@@ -86,45 +105,45 @@ def create_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALLOWED_ROLES))
 ):
-    # 0) Validación mínima para evitar notas vacías
-    if data.note_type == "general":
-        if not data.content or not data.content.strip():
-            raise HTTPException(status_code=400, detail="Para note_type='general' debes enviar 'content'")
-    elif data.note_type == "soap":
-        if not any([
-            (data.subjective and data.subjective.strip()),
-            (data.objective and data.objective.strip()),
-            (data.assessment and data.assessment.strip()),
-            (data.plan and data.plan.strip()),
-            (data.content and data.content.strip()),
-        ]):
-            raise HTTPException(
-                status_code=400,
-                detail="Para note_type='soap' debes enviar al menos un campo (subjective/objective/assessment/plan/content)"
-            )
+    # 1) validar contenido
+    _validate_note_payload(
+        note_type=data.note_type,
+        subjective=data.subjective,
+        objective=data.objective,
+        assessment=data.assessment,
+        plan=data.plan,
+        content=data.content,
+    )
 
-    # 1) validar cita existe y tengo acceso (con agenda objetivo)
-    appt = _appointment_access_query(db, current_user, data.appointment_id).first()
-    if not appt:
-        raise HTTPException(status_code=404, detail="Cita no encontrada o sin acceso")
-
-    # 2) validar paciente ligado a esa cita (y activo)
-    patient = _patient_access_query(db, current_user, appt.patient_id).first()
+    # 2) validar paciente
+    patient = _patient_access_query(db, current_user, data.patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Paciente no encontrado o sin acceso")
 
-    # 3) determinar a quién pertenece la nota (agenda objetivo)
-    #    assistant -> psicóloga, psychologist -> él/ella, admin -> puede dejarla en la agenda de la cita
+    # 3) validar cita si se envió
+    appt = None
+    if data.appointment_id is not None:
+        appt = _appointment_access_query(db, current_user, data.appointment_id).first()
+        if not appt:
+            raise HTTPException(status_code=404, detail="Cita no encontrada o sin acceso")
+
+        if appt.patient_id != patient.id:
+            raise HTTPException(
+                status_code=400,
+                detail="La cita seleccionada no pertenece al paciente indicado"
+            )
+
+    # 4) dueño real de la nota
     if current_user.role == "admin":
-        target_user_id = appt.user_id
+        target_user_id = appt.user_id if appt else patient.user_id
     else:
         target_user_id = get_target_user_id(db, current_user)
 
-    # 4) crear nota
+    # 5) crear nota
     note = Note(
-        appointment_id=appt.id,
-        patient_id=appt.patient_id,
-        user_id=target_user_id,          # ✅ dueño clínico de la nota (agenda)
+        patient_id=patient.id,
+        appointment_id=appt.id if appt else None,
+        user_id=target_user_id,
         note_type=data.note_type,
         subjective=data.subjective,
         objective=data.objective,
@@ -161,12 +180,10 @@ def list_notes_by_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1) validar acceso al paciente
     patient = _patient_access_query(db, current_user, patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Paciente no encontrado o sin acceso")
 
-    # 2) notas del paciente (por agenda)
     q = db.query(Note).filter(Note.patient_id == patient_id, Note.is_active == True)
 
     if current_user.role == "admin":
@@ -193,14 +210,55 @@ def update_note(
     if not note:
         raise HTTPException(status_code=404, detail="Nota no encontrada o sin acceso")
 
-    # Validación mínima al actualizar
-    if data.note_type == "general":
-        if data.content is not None and not data.content.strip():
-            raise HTTPException(status_code=400, detail="content no puede ir vacío para note_type='general'")
+    # 1) determinar paciente final
+    final_patient_id = data.patient_id if data.patient_id is not None else note.patient_id
+    patient = _patient_access_query(db, current_user, final_patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado o sin acceso")
 
-    for field, value in data.dict(exclude_unset=True).items():
-        setattr(note, field, value)
+    # 2) determinar cita final
+    final_appointment_id = note.appointment_id
+    if data.appointment_id is not None:
+        final_appointment_id = data.appointment_id
 
+    appt = None
+    if final_appointment_id is not None:
+        appt = _appointment_access_query(db, current_user, final_appointment_id).first()
+        if not appt:
+            raise HTTPException(status_code=404, detail="Cita no encontrada o sin acceso")
+
+        if appt.patient_id != patient.id:
+            raise HTTPException(
+                status_code=400,
+                detail="La cita seleccionada no pertenece al paciente indicado"
+            )
+
+    # 3) validar contenido final
+    final_note_type = data.note_type if data.note_type is not None else note.note_type
+    final_subjective = data.subjective if data.subjective is not None else note.subjective
+    final_objective = data.objective if data.objective is not None else note.objective
+    final_assessment = data.assessment if data.assessment is not None else note.assessment
+    final_plan = data.plan if data.plan is not None else note.plan
+    final_content = data.content if data.content is not None else note.content
+
+    _validate_note_payload(
+        note_type=final_note_type,
+        subjective=final_subjective,
+        objective=final_objective,
+        assessment=final_assessment,
+        plan=final_plan,
+        content=final_content,
+    )
+
+    # 4) actualizar
+    note.patient_id = patient.id
+    note.appointment_id = appt.id if appt else None
+    note.note_type = final_note_type
+    note.subjective = final_subjective
+    note.objective = final_objective
+    note.assessment = final_assessment
+    note.plan = final_plan
+    note.content = final_content
     note.updated_by = current_user.id
     note.updated_at = datetime.utcnow()
 

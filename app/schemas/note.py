@@ -13,14 +13,22 @@ class NoteBase(BaseModel):
     assessment: Optional[str] = None
     plan: Optional[str] = None
 
-    content: Optional[str] = None  # para nota simple
+    content: Optional[str] = None
 
 
 class NoteCreate(NoteBase):
-    appointment_id: int
+    # ✅ Siempre necesitamos paciente
+    patient_id: int
+
+    # ✅ Ahora la cita es opcional
+    appointment_id: Optional[int] = None
 
 
 class NoteUpdate(BaseModel):
+    # ✅ Permitimos cambiar paciente o cita si hace falta
+    patient_id: Optional[int] = None
+    appointment_id: Optional[int] = None
+
     note_type: Optional[NoteType] = None
     subjective: Optional[str] = None
     objective: Optional[str] = None
@@ -32,7 +40,7 @@ class NoteUpdate(BaseModel):
 class NoteResponse(NoteBase):
     id: int
     patient_id: int
-    appointment_id: int
+    appointment_id: Optional[int] = None
     user_id: int
     is_active: bool
     created_at: datetime

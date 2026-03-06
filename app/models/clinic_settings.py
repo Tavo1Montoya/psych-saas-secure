@@ -18,7 +18,7 @@ class ClinicSettings(Base):
     wed = Column(Boolean, default=True)
     thu = Column(Boolean, default=True)
     fri = Column(Boolean, default=True)
-    sat = Column(Boolean, default=False)
-    sun = Column(Boolean, default=False)
+    sat = Column(Boolean, default=True)
+    sun = Column(Boolean, default=True)
 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -5,6 +5,8 @@ import Toast from "../components/Toast";
 import { NotesAPI } from "../api/notes";
 import { AppointmentsAPI } from "../api/appointments";
 import { PatientsAPI } from "../api/patients";
+import { buildSuccessMessage } from "../utils/successMessage.js";
+import { getCurrentRoleFromStorage } from "../utils/currentRole.js";
 
 export default function Notes() {
   const [items, setItems] = useState([]);
@@ -14,7 +16,9 @@ export default function Notes() {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, type: "info", message: "" });
 
-  // Crear nota
+  // Crear / editar nota
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [patient_id, setPatientId] = useState("");
   const [appointment_id, setAppointmentId] = useState("");
   const [note_type, setType] = useState("soap");
   const [subjective, setSubjective] = useState("");
@@ -23,15 +27,17 @@ export default function Notes() {
   const [plan, setPlan] = useState("");
   const [content, setContent] = useState("");
 
-  // ✅ NUEVO: modal de notas por paciente
+  // Modal de notas por paciente
   const [openPatient, setOpenPatient] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [patientNotes, setPatientNotes] = useState([]);
   const [loadingPatientNotes, setLoadingPatientNotes] = useState(false);
   const [searchPatientNotes, setSearchPatientNotes] = useState("");
 
-  // ✅ NUEVO: buscador en listado principal
+  // Buscador principal
   const [search, setSearch] = useState("");
+
+  const currentRole = getCurrentRoleFromStorage();
 
   async function load() {
     try {
@@ -69,6 +75,17 @@ export default function Notes() {
     return m;
   }, [appts]);
 
+  const patientAppointments = useMemo(() => {
+    if (!patient_id) return [];
+    return appts
+      .filter((a) => Number(a.patient_id) === Number(patient_id))
+      .sort((a, b) => {
+        const ta = a?.start_time ? dayjs(a.start_time).valueOf() : 0;
+        const tb = b?.start_time ? dayjs(b.start_time).valueOf() : 0;
+        return tb - ta;
+      });
+  }, [appts, patient_id]);
+
   function labelNoteType(t) {
     if (!t) return "—";
     if (t === "soap") return "Nota clínica";
@@ -77,20 +94,20 @@ export default function Notes() {
   }
 
   function labelStatusEs(status) {
-  const s = String(status || "").toLowerCase().trim();
-  if (s === "scheduled") return "Agendada";
-  if (s === "completed") return "Completada";
-  if (s === "cancelled") return "Cancelada";
-  if (s === "no_show" || s === "no-show" || s === "noshow") return "No asistió";
-  return status || "—";
-}
+    const s = String(status || "").toLowerCase().trim();
+    if (s === "scheduled") return "Agendada";
+    if (s === "completed") return "Completada";
+    if (s === "cancelled") return "Cancelada";
+    if (s === "no_show" || s === "no-show" || s === "noshow") return "No asistió";
+    return status || "—";
+  }
 
-function apptLabel(a) {
-  if (!a) return "—";
-  const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
-  const st = labelStatusEs(a.status);
-  return `${when} — ${st}`;
-}
+  function apptLabel(a) {
+    if (!a) return "Sin cita";
+    const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
+    const st = labelStatusEs(a.status);
+    return `${when} — ${st}`;
+  }
 
   function patientNameById(id) {
     const p = patientMap.get(id);
@@ -106,59 +123,46 @@ function apptLabel(a) {
     }
   }
 
-  // ✅ Para ordenar notas: las que son de cita de HOY arriba (si aplica), luego por created_at desc
-  const sortedItems = useMemo(() => {
-    const arr = Array.isArray(items) ? [...items] : [];
+  function resetForm() {
+    setEditingNoteId(null);
+    setPatientId("");
+    setAppointmentId("");
+    setType("soap");
+    setSubjective("");
+    setObjective("");
+    setAssessment("");
+    setPlan("");
+    setContent("");
+  }
 
-    arr.sort((a, b) => {
-      const apA = apptMap.get(a.appointment_id);
-      const apB = apptMap.get(b.appointment_id);
+  function closeNoteModal() {
+    setOpen(false);
+    resetForm();
+  }
 
-      const aToday = isToday(apA?.start_time);
-      const bToday = isToday(apB?.start_time);
+  function startEditNote(note) {
+    setEditingNoteId(note.id);
+    setPatientId(note.patient_id ? String(note.patient_id) : "");
+    setAppointmentId(note.appointment_id ? String(note.appointment_id) : "");
+    setType(note.note_type || "soap");
+    setSubjective(note.subjective || "");
+    setObjective(note.objective || "");
+    setAssessment(note.assessment || "");
+    setPlan(note.plan || "");
+    setContent(note.content || "");
+    setOpen(true);
+  }
 
-      if (aToday && !bToday) return -1;
-      if (!aToday && bToday) return 1;
-
-      const aCreated = a?.created_at ? dayjs(a.created_at).valueOf() : 0;
-      const bCreated = b?.created_at ? dayjs(b.created_at).valueOf() : 0;
-      return bCreated - aCreated;
-    });
-
-    return arr;
-  }, [items, apptMap]);
-
-  // ✅ Buscador del listado principal
-  const filteredMain = useMemo(() => {
-    const q = (search || "").toLowerCase().trim();
-    if (!q) return sortedItems;
-
-    return sortedItems.filter((n) => {
-      const a = apptMap.get(n.appointment_id);
-      const pid = n.patient_id ?? a?.patient_id;
-      const pname = patientNameById(pid);
-      const type = labelNoteType(n.note_type);
-      const when = a?.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : "";
-      const created = n.created_at ? dayjs(n.created_at).format("YYYY-MM-DD HH:mm") : "";
-
-      const hay =
-        `${pname} ${type} ${when} ${created} ${n.subjective || ""} ${n.objective || ""} ${n.assessment || ""} ${
-          n.plan || ""
-        } ${n.content || ""}`.toLowerCase();
-
-      return hay.includes(q);
-    });
-  }, [search, sortedItems, apptMap, patientMap]);
-
-  async function create() {
+  async function createOrUpdate() {
     try {
-      if (!appointment_id) {
-        setToast({ show: true, type: "Advertencia", message: "Selecciona una cita" });
+      if (!patient_id) {
+        setToast({ show: true, type: "Advertencia", message: "Selecciona un paciente" });
         return;
       }
 
       const payload = {
-        appointment_id: Number(appointment_id),
+        patient_id: Number(patient_id),
+        appointment_id: appointment_id ? Number(appointment_id) : null,
         note_type,
         subjective: subjective || null,
         objective: objective || null,
@@ -167,20 +171,27 @@ function apptLabel(a) {
         content: content || null,
       };
 
-      await NotesAPI.create(payload);
+      if (editingNoteId) {
+        await NotesAPI.update(editingNoteId, payload);
 
-      setToast({ show: true, type: "Éxito", message: "Nota creada" });
-      setOpen(false);
-      setAppointmentId("");
-      setSubjective("");
-      setObjective("");
-      setAssessment("");
-      setPlan("");
-      setContent("");
+        setToast({
+          show: true,
+          type: "Éxito",
+          message: buildSuccessMessage(currentRole, "Nota actualizada"),
+        });
+      } else {
+        await NotesAPI.create(payload);
 
+        setToast({
+          show: true,
+          type: "Éxito",
+          message: buildSuccessMessage(currentRole, "Nota creada"),
+        });
+      }
+
+      closeNoteModal();
       await load();
 
-      // ✅ Si el modal de paciente está abierto, refrescamos solo ese paciente desde backend
       if (openPatient && selectedPatientId) {
         await openPatientNotes(selectedPatientId, { keepOpen: true });
       }
@@ -188,12 +199,13 @@ function apptLabel(a) {
       setToast({
         show: true,
         type: "Advertencia",
-        message: e?.response?.data?.detail || "Error creando nota",
+        message:
+          e?.response?.data?.detail ||
+          (editingNoteId ? "Error actualizando nota" : "Error creando nota"),
       });
     }
   }
 
-  // ✅ Abrir modal y cargar notas por paciente usando backend (/notes/by-patient/:id)
   async function openPatientNotes(patientId, opts = {}) {
     const id = Number(patientId);
     if (!id) return;
@@ -205,8 +217,11 @@ function apptLabel(a) {
       const data = await NotesAPI.byPatient(id);
       setPatientNotes(Array.isArray(data) ? data : []);
 
-      if (!opts.keepOpen) setOpenPatient(true);
-      else setOpenPatient(true);
+      setOpenPatient(true);
+
+      if (!opts.keepOpen) {
+        setSearchPatientNotes("");
+      }
     } catch (e) {
       setToast({
         show: true,
@@ -218,24 +233,75 @@ function apptLabel(a) {
     }
   }
 
-  // ✅ Agrupar notas del paciente por día
+  const patientGroups = useMemo(() => {
+    const groups = new Map();
+
+    for (const n of items || []) {
+      const pid = n.patient_id;
+      if (!pid) continue;
+
+      if (!groups.has(pid)) {
+        groups.set(pid, {
+          patient_id: pid,
+          patient_name: patientNameById(pid),
+          notes: [],
+          last_note_at: null,
+        });
+      }
+
+      const group = groups.get(pid);
+      group.notes.push(n);
+
+      const created = n?.created_at ? dayjs(n.created_at).valueOf() : 0;
+      const currentLast = group.last_note_at ? dayjs(group.last_note_at).valueOf() : 0;
+
+      if (created > currentLast) {
+        group.last_note_at = n.created_at;
+      }
+    }
+
+    let arr = Array.from(groups.values());
+
+    const q = (search || "").toLowerCase().trim();
+    if (q) {
+      arr = arr.filter((g) => {
+        const latest = g.last_note_at ? dayjs(g.last_note_at).format("YYYY-MM-DD HH:mm") : "";
+        const previewText = g.notes
+          .map((n) =>
+            `${n.subjective || ""} ${n.objective || ""} ${n.assessment || ""} ${n.plan || ""} ${n.content || ""}`
+          )
+          .join(" ")
+          .toLowerCase();
+
+        const hay = `${g.patient_name} ${latest} ${previewText}`.toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    arr.sort((a, b) => {
+      const ta = a.last_note_at ? dayjs(a.last_note_at).valueOf() : 0;
+      const tb = b.last_note_at ? dayjs(b.last_note_at).valueOf() : 0;
+      return tb - ta;
+    });
+
+    return arr;
+  }, [items, search, patients]);
+
   const patientNotesGrouped = useMemo(() => {
     const q = (searchPatientNotes || "").toLowerCase().trim();
     const arr = Array.isArray(patientNotes) ? [...patientNotes] : [];
 
-    // Orden: más reciente primero (por created_at)
     arr.sort((a, b) => {
       const aCreated = a?.created_at ? dayjs(a.created_at).valueOf() : 0;
       const bCreated = b?.created_at ? dayjs(b.created_at).valueOf() : 0;
       return bCreated - aCreated;
     });
 
-    // Filtro
     const filtered = !q
       ? arr
       : arr.filter((n) => {
           const a = apptMap.get(n.appointment_id);
-          const when = a?.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : "";
+          const when = a?.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : "Sin cita";
           const created = n.created_at ? dayjs(n.created_at).format("YYYY-MM-DD HH:mm") : "";
           const type = labelNoteType(n.note_type);
 
@@ -247,10 +313,10 @@ function apptLabel(a) {
           return hay.includes(q);
         });
 
-    // Group key: preferimos la fecha de la CITA, si no, created_at
     const groups = new Map();
     for (const n of filtered) {
       const a = apptMap.get(n.appointment_id);
+
       const key = a?.start_time
         ? dayjs(a.start_time).format("YYYY-MM-DD")
         : n.created_at
@@ -261,7 +327,6 @@ function apptLabel(a) {
       groups.get(key).push(n);
     }
 
-    // Convertimos a array y ordenamos grupos por fecha desc, pero "HOY" arriba
     const out = Array.from(groups.entries()).map(([date, notes]) => ({ date, notes }));
 
     out.sort((g1, g2) => {
@@ -277,7 +342,6 @@ function apptLabel(a) {
     return out;
   }, [patientNotes, searchPatientNotes, apptMap]);
 
-  // ✅ Para “Nueva nota para este paciente”: intenta preseleccionar cita de HOY o la más reciente
   function pickDefaultAppointmentForPatient(patientId) {
     const id = Number(patientId);
     const patientAppts = appts
@@ -288,25 +352,19 @@ function apptLabel(a) {
         return tb - ta;
       });
 
-    // Primero cita de HOY (si existe)
     const todayAppt = patientAppts.find((a) => isToday(a?.start_time));
     if (todayAppt) return todayAppt.id;
 
-    // Si no, la más reciente
     if (patientAppts[0]) return patientAppts[0].id;
 
     return "";
   }
 
-  function startNewNoteForPatient(patientId) {
-    const apptId = pickDefaultAppointmentForPatient(patientId);
+  function startNewNoteForPatient(patientIdValue) {
+    const apptId = pickDefaultAppointmentForPatient(patientIdValue);
+    resetForm();
+    setPatientId(String(patientIdValue));
     setAppointmentId(apptId ? String(apptId) : "");
-    setType("soap");
-    setSubjective("");
-    setObjective("");
-    setAssessment("");
-    setPlan("");
-    setContent("");
     setOpen(true);
   }
 
@@ -315,74 +373,72 @@ function apptLabel(a) {
       <div className="row">
         <div>
           <h1 className="h1">Notas clínicas</h1>
-          <p className="p"> General, ligadas a una cita.</p>
+          <p className="p">Historial de notas agrupado por paciente.</p>
         </div>
         <div className="spacer" />
-        <button className="btn btnPrimary" onClick={() => setOpen(true)}>
+        <button
+          className="btn btnPrimary"
+          onClick={() => {
+            resetForm();
+            setOpen(true);
+          }}
+        >
           + Nueva nota
         </button>
       </div>
 
-      {/* ✅ Buscador principal */}
       <div className="card cardPad" style={{ marginBottom: 12 }}>
-        <label className="label">Buscar</label>
+        <label className="label">Buscar paciente o contenido</label>
         <input
           className="input"
-          placeholder="Buscar por paciente, tipo, fecha, contenido..."
+          placeholder="Buscar por paciente, fecha o texto de notas..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="p" style={{ marginTop: 8, color: "var(--muted)" }}>
-          Tip: el paciente con cita de hoy (si existe) aparece arriba.
-        </div>
       </div>
 
-      <div className="card cardPad">
+      <div className="card cardPad" style={{ overflowX: "auto" }}>
         <table className="table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Cita</th>
               <th>Paciente</th>
-              <th>Tipo</th>
-              <th>Creada</th>
+              <th>Total notas</th>
+              <th>Última nota</th>
+              <th style={{ textAlign: "right" }}>Acciones</th>
             </tr>
           </thead>
 
           <tbody>
-            {filteredMain.map((n) => {
-              const a = apptMap.get(n.appointment_id);
-              const pid = n.patient_id ?? a?.patient_id;
-              const patientName = patientNameById(pid);
+            {patientGroups.map((g) => (
+              <tr key={g.patient_id}>
+                <td>{g.patient_name}</td>
+                <td>{g.notes.length}</td>
+                <td>{g.last_note_at ? dayjs(g.last_note_at).format("YYYY-MM-DD HH:mm") : "—"}</td>
 
-              return (
-                <tr key={n.id}>
-                  <td>#{n.id}</td>
-                  <td>{a ? apptLabel(a) : `Cita #${n.appointment_id}`}</td>
-
-                  {/* ✅ CLICK en paciente -> abre sus notas por día */}
-                  <td>
-                    <button
-                      type="button"
-                      className="btn"
-                      style={{ padding: "6px 10px" }}
-                      onClick={() => openPatientNotes(pid)}
-                      title="Ver notas del paciente"
-                    >
-                      {patientName}
+                <td style={{ textAlign: "right" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button className="btn" onClick={() => openPatientNotes(g.patient_id)}>
+                      Ver notas
                     </button>
-                  </td>
+                    <button className="btn btnPrimary" onClick={() => startNewNoteForPatient(g.patient_id)}>
+                      Nueva nota
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
 
-                  <td>{labelNoteType(n.note_type)}</td>
-                  <td>{n.created_at ? dayjs(n.created_at).format("YYYY-MM-DD HH:mm") : "—"}</td>
-                </tr>
-              );
-            })}
-
-            {filteredMain.length === 0 && (
+            {patientGroups.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--muted)" }}>
-                  Sin notas.
+                <td colSpan={4} style={{ color: "var(--muted)" }}>
+                  Sin notas registradas.
                 </td>
               </tr>
             )}
@@ -390,59 +446,80 @@ function apptLabel(a) {
         </table>
       </div>
 
-      {/* ✅ Modal Crear nota */}
       <Modal
         open={open}
-        title="Nueva nota clínica"
-        onClose={() => setOpen(false)}
+        title={editingNoteId ? "Editar nota clínica" : "Nueva nota clínica"}
+        onClose={closeNoteModal}
         footer={
           <>
-            <button className="btn" onClick={() => setOpen(false)}>
+            <button className="btn" onClick={closeNoteModal}>
               Cancelar
             </button>
-            <button className="btn btnPrimary" onClick={create}>
-              Guardar
+            <button className="btn btnPrimary" onClick={createOrUpdate}>
+              {editingNoteId ? "Guardar cambios" : "Guardar"}
             </button>
           </>
         }
       >
-        <label className="label">Cita</label>
-        <select className="select" value={appointment_id} onChange={(e) => setAppointmentId(e.target.value)}>
-          <option value="">Selecciona…</option>
-          {appts.map((a) => {
-            const pName = patientNameById(a.patient_id);
-            const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
-            return (
-              <option key={a.id} value={a.id}>
-                #{a.id} — {pName} — {when} — {a.status}
+        <div style={{ display: "grid", gap: 12 }}>
+          <label className="label">Paciente</label>
+          <select
+            className="select"
+            value={patient_id}
+            onChange={(e) => {
+              setPatientId(e.target.value);
+              setAppointmentId("");
+            }}
+          >
+            <option value="">Selecciona paciente…</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                #{p.id} — {p.full_name || p.name}
               </option>
-            );
-          })}
-        </select>
+            ))}
+          </select>
 
-        <label className="label">Tipo</label>
-        <select className="select" value={note_type} onChange={(e) => setType(e.target.value)}>
-          <option value="soap">Nota clínica</option>
-          <option value="general">Nota general</option>
-        </select>
+          <label className="label">Cita (opcional)</label>
+          <select
+            className="select"
+            value={appointment_id}
+            onChange={(e) => setAppointmentId(e.target.value)}
+            disabled={!patient_id}
+          >
+            <option value="">Sin cita / nota libre</option>
+            {patientAppointments.map((a) => {
+              const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
+              return (
+                <option key={a.id} value={a.id}>
+                  #{a.id} — {when} — {a.status}
+                </option>
+              );
+            })}
+          </select>
 
-        <label className="label">Diagnóstico</label>
-        <textarea className="textarea" value={subjective} onChange={(e) => setSubjective(e.target.value)} />
+          <label className="label">Tipo</label>
+          <select className="select" value={note_type} onChange={(e) => setType(e.target.value)}>
+            <option value="soap">Nota clínica</option>
+            <option value="general">Nota general</option>
+          </select>
 
-        <label className="label">Objetivo</label>
-        <textarea className="textarea" value={objective} onChange={(e) => setObjective(e.target.value)} />
+          <label className="label">Diagnóstico</label>
+          <textarea className="textarea" value={subjective} onChange={(e) => setSubjective(e.target.value)} />
 
-        <label className="label">Evaluación</label>
-        <textarea className="textarea" value={assessment} onChange={(e) => setAssessment(e.target.value)} />
+          <label className="label">Objetivo</label>
+          <textarea className="textarea" value={objective} onChange={(e) => setObjective(e.target.value)} />
 
-        <label className="label">Plan</label>
-        <textarea className="textarea" value={plan} onChange={(e) => setPlan(e.target.value)} />
+          <label className="label">Evaluación</label>
+          <textarea className="textarea" value={assessment} onChange={(e) => setAssessment(e.target.value)} />
 
-        <label className="label">Contenido (nota simple opcional)</label>
-        <textarea className="textarea" value={content} onChange={(e) => setContent(e.target.value)} />
+          <label className="label">Plan</label>
+          <textarea className="textarea" value={plan} onChange={(e) => setPlan(e.target.value)} />
+
+          <label className="label">Contenido (nota simple opcional)</label>
+          <textarea className="textarea" value={content} onChange={(e) => setContent(e.target.value)} />
+        </div>
       </Modal>
 
-      {/* ✅ Modal: Notas por paciente (por día + buscador) */}
       <Modal
         open={openPatient}
         title={`Notas de ${selectedPatientId ? patientNameById(selectedPatientId) : "Paciente"}`}
@@ -455,7 +532,10 @@ function apptLabel(a) {
         footer={
           <>
             {selectedPatientId && (
-              <button className="btn btnPrimary" onClick={() => startNewNoteForPatient(selectedPatientId)}>
+              <button
+                className="btn btnPrimary"
+                onClick={() => startNewNoteForPatient(selectedPatientId)}
+              >
                 + Nueva nota para este paciente
               </button>
             )}
@@ -482,7 +562,7 @@ function apptLabel(a) {
         />
 
         <div className="p" style={{ marginTop: 10, color: "var(--muted)" }}>
-          Se agrupan por día (prioridad: fecha de la cita).
+          Se agrupan por día y pueden existir con o sin cita.
         </div>
 
         {loadingPatientNotes ? (
@@ -496,8 +576,20 @@ function apptLabel(a) {
         ) : (
           <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
             {patientNotesGrouped.map((g) => (
-              <div key={g.date} className="card cardPad" style={{ background: "rgba(255,255,255,.03)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div
+                key={g.date}
+                className="card cardPad"
+                style={{ background: "rgba(255,255,255,.03)" }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <div style={{ fontWeight: 900 }}>
                     {g.date} {dayjs(g.date).isSame(dayjs(), "day") ? "— HOY" : ""}
                   </div>
@@ -509,10 +601,9 @@ function apptLabel(a) {
                 <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
                   {g.notes.map((n) => {
                     const a = apptMap.get(n.appointment_id);
-                    const when = a?.start_time ? dayjs(a.start_time).format("HH:mm") : "";
+                    const when = a?.start_time ? dayjs(a.start_time).format("HH:mm") : "Sin cita";
                     const created = n.created_at ? dayjs(n.created_at).format("HH:mm") : "";
 
-                    // mini preview sin romper layout
                     const preview =
                       n.subjective ||
                       n.objective ||
@@ -533,20 +624,39 @@ function apptLabel(a) {
                           background: "rgba(255,255,255,.02)",
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 10,
+                            flexWrap: "wrap",
+                          }}
+                        >
                           <div style={{ fontWeight: 800 }}>
                             #{n.id} — {labelNoteType(n.note_type)}
                           </div>
                           <div className="p" style={{ margin: 0, opacity: 0.8 }}>
-                            {when ? `Cita ${when}` : ""} {created ? `${when ? "• " : ""}Creada ${created}` : ""}
+                            {when} {created ? `• Creada ${created}` : ""}
                           </div>
                         </div>
 
-                        {short ? <div className="p" style={{ marginTop: 8 }}>📝 {short}{preview.length > 140 ? "..." : ""}</div> : (
+                        {short ? (
+                          <div className="p" style={{ marginTop: 8, wordBreak: "break-word" }}>
+                            📝 {short}
+                            {preview.length > 140 ? "..." : ""}
+                          </div>
+                        ) : (
                           <div className="p" style={{ marginTop: 8, color: "var(--muted)" }}>
                             (Nota sin contenido visible)
                           </div>
                         )}
+
+                        <div style={{ marginTop: 10 }}>
+                          <button className="btn" onClick={() => startEditNote(n)}>
+                            Editar nota
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

@@ -12,23 +12,25 @@ class PatientCreate(BaseModel):
     birth_date: Optional[date] = None
     notes: Optional[str] = None
 
-    # =========================
+    # ✅ NUEVOS
+    expediente_number: Optional[str] = None
+    alias: Optional[str] = None
+
     # ✅ FICHA DE IDENTIFICACIÓN (opcional)
-    # =========================
-    sex: Optional[str] = None  # sexo
-    marital_status: Optional[str] = None  # estado civil
-    occupation: Optional[str] = None  # ocupación
-    workplace: Optional[str] = None  # lugar de trabajo
-    work_days: Optional[str] = None  # días laborales (texto)
-    work_schedule: Optional[str] = None  # horario laboral (texto)
+    sex: Optional[str] = None
+    marital_status: Optional[str] = None
+    occupation: Optional[str] = None
+    workplace: Optional[str] = None
+    work_days: Optional[str] = None
+    work_schedule: Optional[str] = None
 
-    birth_place: Optional[str] = None  # lugar de nacimiento
-    education: Optional[str] = None  # escolaridad
-    religion: Optional[str] = None  # religión
-    address: Optional[str] = None  # domicilio
+    birth_place: Optional[str] = None
+    education: Optional[str] = None
+    religion: Optional[str] = None
+    address: Optional[str] = None
 
-    emergency_contact_name: Optional[str] = None  # contacto emergencia (nombre)
-    emergency_contact_phone: Optional[str] = None  # contacto emergencia (teléfono)
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
 
 
 class PatientUpdate(BaseModel):
@@ -38,9 +40,11 @@ class PatientUpdate(BaseModel):
     birth_date: Optional[date] = None
     notes: Optional[str] = None
 
-    # =========================
+    # ✅ NUEVOS
+    expediente_number: Optional[str] = None
+    alias: Optional[str] = None
+
     # ✅ FICHA DE IDENTIFICACIÓN (opcional)
-    # =========================
     sex: Optional[str] = None
     marital_status: Optional[str] = None
     occupation: Optional[str] = None
@@ -68,9 +72,11 @@ class PatientResponse(BaseModel):
     birth_date: Optional[date] = None
     notes: Optional[str] = None
 
-    # =========================
+    # ✅ NUEVOS (se devuelven para mostrarlos en UI)
+    expediente_number: Optional[str] = None
+    alias: Optional[str] = None
+
     # ✅ FICHA DE IDENTIFICACIÓN (salida)
-    # =========================
     sex: Optional[str] = None
     marital_status: Optional[str] = None
     occupation: Optional[str] = None
@@ -92,7 +98,5 @@ class PatientResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    # ✅ CLAVE para que FastAPI pueda serializar modelos SQLAlchemy
     class Config:
-        from_attributes = True  # Pydantic v2
-        # Si estuvieras en Pydantic v1, sería: orm_mode = True
+        from_attributes = True

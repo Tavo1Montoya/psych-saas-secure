@@ -1,11 +1,14 @@
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
+
 import Modal from "../components/Modal";
 import Toast from "../components/Toast";
 import StatusBadge from "../components/StatusBadge";
 import { AppointmentsAPI } from "../api/appointments";
 import { PatientsAPI } from "../api/patients";
-import { useSearchParams } from "react-router-dom";
+import { buildSuccessMessage } from "../utils/successMessage.js";
+import { getCurrentRoleFromStorage } from "../utils/currentRole.js";
 
 export default function Appointments() {
   const [items, setItems] = useState([]);
@@ -25,25 +28,25 @@ export default function Appointments() {
   const [date_from, setFrom] = useState("");
   const [date_to, setTo] = useState("");
 
-  // ✅ status filter (viene del dashboard)
+  // status filter
   const [status, setStatus] = useState("");
 
-  // ✅ leer query params
+  // query params
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const currentRole = getCurrentRoleFromStorage();
 
   // =========================
-  // Helpers de fechas (NO tocar)
+  // Helpers de fechas
   // =========================
 
-  // ✅ Convierte datetime-local -> string "naive" (SIN UTC, SIN Z)
-  // Ej: "2026-02-11T12:00" -> "2026-02-11T12:00:00"
+  // datetime-local -> naive local string
   function toNaiveLocalDatetimeString(dtLocalValue) {
     if (!dtLocalValue) return "";
     return dayjs(dtLocalValue).format("YYYY-MM-DDTHH:mm:ss");
   }
 
-  // ✅ Helper: formar value compatible con <input type="datetime-local">
-  // date: "2026-11-11", time: "10:30" => "2026-11-11T10:30"
+  // date + time -> datetime-local
   function toDatetimeLocalValue(dateStr, timeStr) {
     if (!dateStr || !timeStr) return "";
     return `${dateStr}T${timeStr}`;
@@ -53,7 +56,6 @@ export default function Appointments() {
   // Helpers de filtros
   // =========================
   function buildParamsFromState() {
-    // ✅ Solo mandamos lo que tenga valor
     const params = {
       ...(date_from ? { date_from } : {}),
       ...(date_to ? { date_to } : {}),
@@ -88,17 +90,15 @@ export default function Appointments() {
   }
 
   // =========================
-  // ✅ Al montar: cargar pacientes una vez
+  // Cargar pacientes una vez
   // =========================
   useEffect(() => {
     loadPatients();
- // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =========================
-  // ✅ ÚNICO efecto para URL: cada vez que cambie searchParams
-  //    - sincroniza estado de filtros
-  //    - recarga citas automáticamente
+  // Sincronizar filtros con URL y cargar listado
   // =========================
   useEffect(() => {
     (async () => {
@@ -107,32 +107,54 @@ export default function Appointments() {
       const qp_status = searchParams.get("status") || "";
       const qp_patient = searchParams.get("patient_id") || "";
 
-      // ✅ reflejar en UI (si no vienen, dejamos "" para que sea “Todos”)
       setFrom(qp_from);
       setTo(qp_to);
       setStatus(qp_status);
       setPatientId(qp_patient);
 
-      // ✅ recargar citas con esos params (sin depender del estado viejo)
       const params = buildParamsFromQuery(qp_from, qp_to, qp_status, qp_patient);
       await load(params);
     })();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+    useEffect(() => {
+  const params = new URLSearchParams(location.search);
 
+  const pickedDate = params.get("date");
+  const pickedTime = params.get("time");
+
+  if (!pickedDate || !pickedTime) return;
+
+  const dtLocal = toDatetimeLocalValue(pickedDate, pickedTime);
+  if (!dtLocal) return;
+
+  setStartTime(dtLocal);
+  setOpen(true);
+
+  params.delete("date");
+  params.delete("time");
+
+  const next = params.toString();
+  const newUrl = next ? `/appointments?${next}` : "/appointments";
+  window.history.replaceState({}, "", newUrl);
+}, [location.search]);
+  // =========================
+  // ✅ NUEVO: si viene desde el calendario con ?date=YYYY-MM-DD&time=HH:mm
+  // abre modal y prellena fecha/hora
+  // =========================
   const patientMap = useMemo(() => {
     const m = new Map();
     for (const p of patients) m.set(p.id, p);
     return m;
   }, [patients]);
 
-  // ✅ Helper: resolver nombre de paciente (prioridad: patientsMap -> patient_name -> fallback)
   function getPatientLabel(appointment) {
     const p = patientMap.get(appointment.patient_id);
     return (
       p?.full_name ||
       p?.name ||
-      appointment?.patient_name || // 👈 viene del backend (AppointmentResponse)
+      appointment?.patient_name ||
       `patient_id:${appointment.patient_id}`
     );
   }
@@ -162,17 +184,17 @@ export default function Appointments() {
         setToast({ show: true, type: "Advertencia", message: "Selecciona un paciente" });
         return;
       }
+
       if (!start_time) {
         setToast({ show: true, type: "Advertencia", message: "Selecciona fecha y hora" });
         return;
       }
 
-      // ✅ IMPORTANTE: NO usar toISOString() (eso lo vuelve UTC y rompe el horario)
       const startTimeNaive = toNaiveLocalDatetimeString(start_time);
 
       const payload = {
         patient_id: Number(patient_id),
-        start_time: startTimeNaive, // ✅ LOCAL naive
+        start_time: startTimeNaive,
         duration_minutes: Number(duration_minutes),
         status: "scheduled",
         notes: null,
@@ -180,14 +202,18 @@ export default function Appointments() {
 
       await AppointmentsAPI.create(payload);
 
-      setToast({ show: true, type: "Éxito", message: "Cita creada" });
-      setOpen(false);
+     setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Cita creada"),
+});
 
-      // ✅ limpiamos modal, NO filtros del listado
+      // limpiamos modal
+      setPatientId("");
       setStartTime("");
       setDuration(60);
 
-      await load(); // respeta filtros actuales
+      await load();
       await refreshAvailabilityIfOpen();
     } catch (e) {
       setToast({
@@ -201,37 +227,62 @@ export default function Appointments() {
   async function complete(id) {
     try {
       await AppointmentsAPI.complete(id);
-      setToast({ show: true, type: "Éxito", message: "Cita completada" });
+      setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Cita Completada"),
+});
 
       await load();
       await refreshAvailabilityIfOpen();
     } catch (e) {
-      setToast({ show: true, type: "Advertencia", message: e?.response?.data?.detail || "Error" });
+      setToast({
+        show: true,
+        type: "Advertencia",
+        message: e?.response?.data?.detail || "Error",
+      });
     }
   }
 
   async function noShow(id) {
     try {
       await AppointmentsAPI.noShow(id);
-      setToast({ show: true, type: "Éxito", message: "Marcada como no-show" });
+     setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Paciente No Asistió"),
+});
 
       await load();
       await refreshAvailabilityIfOpen();
     } catch (e) {
-      setToast({ show: true, type: "Advertencia", message: e?.response?.data?.detail || "Error" });
+      setToast({
+        show: true,
+        type: "Advertencia",
+        message: e?.response?.data?.detail || "Error",
+      });
     }
   }
 
   async function cancel(id) {
     if (!confirm("¿Cancelar (desactivar) cita?")) return;
+
     try {
       await AppointmentsAPI.cancel(id);
-      setToast({ show: true, type: "Éxito", message: "Cita cancelada" });
+      setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Cita Cancelada"),
+});
 
       await load();
       await refreshAvailabilityIfOpen();
     } catch (e) {
-      setToast({ show: true, type: "Advertencia", message: e?.response?.data?.detail || "Error" });
+      setToast({
+        show: true,
+        type: "Advertencia",
+        message: e?.response?.data?.detail || "Error",
+      });
     }
   }
 
@@ -254,7 +305,7 @@ export default function Appointments() {
     }
   }
 
-  // ✅ Click en un horario disponible => abre Crear cita y pre-llena la hora
+  // Click en horario disponible => abrir Crear cita con hora preseleccionada
   function handlePickSlot(dateStr, timeStr) {
     const dtLocal = toDatetimeLocalValue(dateStr, timeStr);
     if (!dtLocal) return;
@@ -278,7 +329,9 @@ export default function Appointments() {
       : "-";
 
   const slotMinutesLabel =
-    availabilityResult?.slot_minutes != null ? `${availabilityResult.slot_minutes} minutos` : "-";
+    availabilityResult?.slot_minutes != null
+      ? `${availabilityResult.slot_minutes} minutos`
+      : "-";
 
   const durationMinutesLabel =
     availabilityResult?.duration_minutes != null
@@ -300,131 +353,141 @@ export default function Appointments() {
         <div className="spacer" />
         <button className="btn btnPrimary" onClick={() => setOpen(true)}>
           + Crear cita
-                  </button>
+        </button>
       </div>
 
       <div className="card cardPad">
-        {/* ✅ Filtros */}
+        {/* Filtros */}
         <div className="row" style={{ marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
-          <div style={{ minWidth: 220 }}>
-            <label className="label">Desde</label>
-            <input
-              className="input"
-              type="date"
-              value={date_from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          </div>
+  <div style={{ minWidth: 220, flex: "1 1 220px" }}>
+    <label className="label">Desde</label>
+    <input
+      className="input"
+      type="date"
+      value={date_from}
+      onChange={(e) => setFrom(e.target.value)}
+    />
+  </div>
 
-          <div style={{ minWidth: 220 }}>
-            <label className="label">Hasta</label>
-            <input
-              className="input"
-              type="date"
-              value={date_to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
+  <div style={{ minWidth: 220, flex: "1 1 220px" }}>
+    <label className="label">Hasta</label>
+    <input
+      className="input"
+      type="date"
+      value={date_to}
+      onChange={(e) => setTo(e.target.value)}
+    />
+  </div>
 
-          <div style={{ minWidth: 220 }}>
-            <label className="label">Estado</label>
-            <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">Todos</option>
-              <option value="scheduled">Agendada</option>
-              <option value="completed">Completada</option>
-              <option value="cancelled">Cancelada</option>
-              <option value="no_show">No asistió</option>
-            </select>
-          </div>
+  <div style={{ minWidth: 220, flex: "1 1 220px" }}>
+    <label className="label">Estado</label>
+    <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+      <option value="">Todos</option>
+      <option value="scheduled">Agendada</option>
+      <option value="completed">Completada</option>
+      <option value="cancelled">Cancelada</option>
+      <option value="no_show">No asistió</option>
+    </select>
+  </div>
 
-          <div style={{ minWidth: 260 }}>
-            <label className="label">Paciente</label>
-            <select className="select" value={patient_id} onChange={(e) => setPatientId(e.target.value)}>
-              <option value="">Todos</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  #{p.id} — {p.full_name || p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+  <div style={{ minWidth: 260, flex: "1 1 260px" }}>
+    <label className="label">Paciente</label>
+    <select className="select" value={patient_id} onChange={(e) => setPatientId(e.target.value)}>
+      <option value="">Todos</option>
+      {patients.map((p) => (
+        <option key={p.id} value={p.id}>
+          #{p.id} — {p.full_name || p.name}
+        </option>
+      ))}
+    </select>
+  </div>
 
-          <div style={{ alignSelf: "end" }}>
-            <button className="btn" onClick={() => load()}>
-              Filtrar
-            </button>
-          </div>
+  <div style={{ alignSelf: "end", display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <button className="btn" onClick={() => load()}>
+      Filtrar
+    </button>
 
-          <div style={{ alignSelf: "end" }}>
-            <button className="btn" onClick={checkAvailability}>
-              Probar disponibilidad
-            </button>
-          </div>
-        </div>
+    <button className="btn" onClick={checkAvailability}>
+      Probar disponibilidad
+    </button>
+  </div>
+</div>
 
         <div className="tableWrap">
           <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Paciente</th>
-              <th>Inicio</th>
-              <th>Duración</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {items.map((a) => (
-              <tr key={a.id}>
-                <td>#{a.id}</td>
-                <td>{getPatientLabel(a)}</td>
-                <td>{dayjs(a.start_time).format("YYYY-MM-DD HH:mm")}</td>
-                <td>{a.duration_minutes} min</td>
-                <td>
-                  <StatusBadge status={a.status} />
-                </td>
-
-               <td style={{ textAlign: "right" }}>
-  <div
-    className="row"
-    style={{
-      justifyContent: "flex-end",
-      flexWrap: "nowrap",
-      gap: 8,
-      overflowX: "auto",
-      maxWidth: "100%",
-      paddingBottom: 2,
-    }}
-  >
-    <button className="btn" style={{ whiteSpace: "nowrap" }} onClick={() => complete(a.id)}>
-      Completada
-    </button>
-    <button className="btn" style={{ whiteSpace: "nowrap" }} onClick={() => noShow(a.id)}>
-      No asistió
-    </button>
-    <button className="btn btnDanger" style={{ whiteSpace: "nowrap" }} onClick={() => cancel(a.id)}>
-      Cancelar
-    </button>
-  </div>
-</td>
-              </tr>
-            ))}
-
-            {items.length === 0 && (
+            <thead>
               <tr>
-                <td colSpan={6} style={{ color: "var(--muted)" }}>
-                  Sin citas.
-                </td>
+                <th>ID</th>
+                <th>Paciente</th>
+                <th>Inicio</th>
+                <th>Duración</th>
+                <th>Estado</th>
+                <th></th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {items.map((a) => (
+                <tr key={a.id}>
+                  <td>#{a.id}</td>
+                  <td>{getPatientLabel(a)}</td>
+                  <td>{dayjs(a.start_time).format("YYYY-MM-DD HH:mm")}</td>
+                  <td>{a.duration_minutes} min</td>
+                  <td>
+                    <StatusBadge status={a.status} />
+                  </td>
+
+                  <td style={{ textAlign: "right" }}>
+                    <div
+                      className="row"
+                      style={{
+                        justifyContent: "flex-end",
+                        flexWrap: "nowrap",
+                        gap: 8,
+                        overflowX: "auto",
+                        maxWidth: "100%",
+                        paddingBottom: 2,
+                      }}
+                    >
+                      <button
+                        className="btn"
+                        style={{ whiteSpace: "nowrap" }}
+                        onClick={() => complete(a.id)}
+                      >
+                        Completada
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ whiteSpace: "nowrap" }}
+                        onClick={() => noShow(a.id)}
+                      >
+                        No asistió
+                      </button>
+                      <button
+                        className="btn btnDanger"
+                        style={{ whiteSpace: "nowrap" }}
+                        onClick={() => cancel(a.id)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ color: "var(--muted)" }}>
+                    Sin citas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* ✅ Modal Crear cita */}
+      {/* Modal Crear cita */}
       <Modal
         open={open}
         title="Crear cita"
@@ -441,7 +504,11 @@ export default function Appointments() {
         }
       >
         <label className="label">Paciente</label>
-        <select className="select" value={patient_id} onChange={(e) => setPatientId(e.target.value)}>
+        <select
+          className="select"
+          value={patient_id}
+          onChange={(e) => setPatientId(e.target.value)}
+        >
           <option value="">Selecciona…</option>
           {patients.map((p) => (
             <option key={p.id} value={p.id}>
@@ -467,7 +534,7 @@ export default function Appointments() {
         />
       </Modal>
 
-      {/* ✅ Modal Disponibilidad */}
+      {/* Modal Disponibilidad */}
       <Modal
         open={openAvailability}
         title="Disponibilidad de agenda"
@@ -483,7 +550,10 @@ export default function Appointments() {
         <div className="grid" style={{ gap: 12 }}>
           {/* Resumen */}
           <div className="card cardPad">
-            <div className="row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}
+            >
               <div>
                 <div className="label">Rango consultado</div>
                 <div className="p" style={{ margin: 0 }}>

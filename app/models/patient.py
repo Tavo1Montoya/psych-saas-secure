@@ -9,30 +9,37 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # ✅ Visible en UI
     full_name = Column(String, nullable=False)
     age = Column(Integer, nullable=False)
 
+    # ✅ NUEVO: N° Expediente (editable, opcional, NO es PK)
+    expediente_number = Column(String, nullable=True, index=True)
+
+    # ✅ NUEVO: Alias (opcional)
+    alias = Column(String, nullable=True, index=True)
+
     # ✅ Campos base
-    phone = Column(String, nullable=True)         # teléfono
-    birth_date = Column(Date, nullable=True)      # fecha de nacimiento (YYYY-MM-DD)
+    phone = Column(String, nullable=True)
+    birth_date = Column(Date, nullable=True)
 
     # ✅ Ficha de identificación (todo opcional)
-    sex = Column(String, nullable=True)  # sexo
-    marital_status = Column(String, nullable=True)  # estado civil
-    occupation = Column(String, nullable=True)  # ocupación
-    workplace = Column(String, nullable=True)  # lugar de trabajo
-    work_days = Column(String, nullable=True)  # días laborales (texto)
-    work_schedule = Column(String, nullable=True)  # horario laboral (texto)
+    sex = Column(String, nullable=True)
+    marital_status = Column(String, nullable=True)
+    occupation = Column(String, nullable=True)
+    workplace = Column(String, nullable=True)
+    work_days = Column(String, nullable=True)
+    work_schedule = Column(String, nullable=True)
 
-    birth_place = Column(String, nullable=True)  # lugar de nacimiento
-    education = Column(String, nullable=True)  # escolaridad
-    religion = Column(String, nullable=True)  # religión
-    address = Column(String, nullable=True)  # domicilio
+    birth_place = Column(String, nullable=True)
+    education = Column(String, nullable=True)
+    religion = Column(String, nullable=True)
+    address = Column(String, nullable=True)
 
-    emergency_contact_name = Column(String, nullable=True)  # contacto emergencia (nombre)
-    emergency_contact_phone = Column(String, nullable=True)  # contacto emergencia (teléfono)
+    emergency_contact_name = Column(String, nullable=True)
+    emergency_contact_phone = Column(String, nullable=True)
 
-    # ✅ Notas del paciente (texto libre)
     notes = Column(String, nullable=True)
 
     # 🔐 Dueño del paciente (psicóloga de la agenda)
@@ -51,18 +58,13 @@ class Patient(Base):
     # =========================
     # ✅ Relaciones
     # =========================
-
-    # ✅ Debe coincidir con User.patients = relationship(..., back_populates="owner")
     owner = relationship("User", back_populates="patients")
 
-    # ✅ Citas del paciente
     appointments = relationship(
         "Appointment",
         back_populates="patient"
-        # (opcional) cascade="all, delete-orphan"
     )
 
-    # ✅ Notas clínicas del paciente
     clinical_notes = relationship(
         "Note",
         back_populates="patient",

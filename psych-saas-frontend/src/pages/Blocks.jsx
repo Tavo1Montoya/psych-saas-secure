@@ -3,6 +3,8 @@ import dayjs from "dayjs";
 import Modal from "../components/Modal";
 import Toast from "../components/Toast";
 import { BlocksAPI } from "../api/blocks";
+import { buildSuccessMessage } from "../utils/successMessage.js";
+import { getCurrentRoleFromStorage } from "../utils/currentRole.js";
 
 export default function Blocks() {
   const [items, setItems] = useState([]);
@@ -15,6 +17,7 @@ export default function Blocks() {
   const [start_time, setStart] = useState(""); // datetime-local
   const [end_time, setEnd] = useState("");     // datetime-local
   const [reason, setReason] = useState("");
+  const currentRole = getCurrentRoleFromStorage();
 
   async function load() {
     const data = await BlocksAPI.list();
@@ -70,10 +73,18 @@ export default function Blocks() {
 
       if (editingId) {
         await BlocksAPI.update(editingId, payload);
-        setToast({ show: true, type: "Éxito", message: "Bloqueo actualizado" });
+        setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Bloqueo actualizado"),
+});
       } else {
         await BlocksAPI.create(payload);
-        setToast({ show: true, type: "Éxito", message: "Bloqueo creado" });
+       setToast({
+  show: true,
+  type: "Éxito",
+  message: buildSuccessMessage(currentRole, "Bloqueo creado"),
+});
       }
 
       setOpen(false);

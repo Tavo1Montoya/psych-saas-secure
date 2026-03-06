@@ -11,7 +11,7 @@ import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Notes from "./pages/Notes";
 import Blocks from "./pages/Blocks";
-
+import Privacy from "./pages/Privacy";
 import { useAuth } from "./auth/useAuth";
 import "./styles/global.css";
 
@@ -60,6 +60,7 @@ export default function App() {
       {/* Fallbacks */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/privacy" element={<Privacy />} />
     </Routes>
   );
 }

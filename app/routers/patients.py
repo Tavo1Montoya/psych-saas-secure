@@ -16,11 +16,7 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 ALLOWED_ROLES = ["admin", "psychologist", "assistant"]
 
 
-# =========================
-# Helpers (owner real por assistant)
-# =========================
 def _calc_age(birth_date: date) -> int:
-    """Calcula edad a partir de birth_date (date)."""
     today = date.today()
     years = today.year - birth_date.year
     if (today.month, today.day) < (birth_date.month, birth_date.day):
@@ -29,22 +25,13 @@ def _calc_age(birth_date: date) -> int:
 
 
 def get_target_user_id(db: Session, current_user: User) -> int:
-    """
-    Propietario objetivo:
-    - psychologist: ella misma
-    - assistant: su owner_user_id (la psicóloga asignada)
-    - admin: admin (pero admin ve todo en list)
-    """
     if current_user.role == "assistant":
-        # ✅ IMPORTANTÍSIMO: ya NO buscamos "la primera psych".
-        # La assistant DEBE estar ligada a una psicóloga.
         if not getattr(current_user, "owner_user_id", None):
             raise HTTPException(
                 status_code=400,
                 detail="Esta assistant no tiene psicóloga asignada (owner_user_id)."
             )
 
-        # ✅ Validar que la psicóloga exista y esté activa
         owner = db.query(User).filter(
             User.id == current_user.owner_user_id,
             User.role == "psychologist",
@@ -59,16 +46,10 @@ def get_target_user_id(db: Session, current_user: User) -> int:
 
         return owner.id
 
-    # psychologist o admin
     return current_user.id
 
 
 def _patient_access_query(db: Session, current_user: User, patient_id: int):
-    """
-    Admin: cualquier paciente activo
-    Psychologist: sus pacientes
-    Assistant: pacientes de SU psicóloga asignada (owner_user_id)
-    """
     q = db.query(Patient).filter(
         Patient.id == patient_id,
         Patient.is_active == True
@@ -82,17 +63,11 @@ def _patient_access_query(db: Session, current_user: User, patient_id: int):
 
 
 def _model_to_dict_exclude_unset(model):
-    """
-    ✅ Compat: Pydantic v2 (model_dump) / v1 (dict)
-    """
     if hasattr(model, "model_dump"):
         return model.model_dump(exclude_unset=True)
     return model.dict(exclude_unset=True)
 
 
-# =========================
-# Endpoints
-# =========================
 @router.post("/", response_model=PatientResponse)
 def create_patient(
     patient: PatientCreate,
@@ -101,12 +76,10 @@ def create_patient(
 ):
     target_user_id = get_target_user_id(db, current_user)
 
-    # ✅ Resolver edad sin romper nada
     resolved_age = patient.age
     if resolved_age is None and patient.birth_date:
         resolved_age = _calc_age(patient.birth_date)
 
-    # Si aún sigue None, no podemos crear (tu DB probablemente tiene age NOT NULL)
     if resolved_age is None:
         raise HTTPException(
             status_code=422,
@@ -120,7 +93,11 @@ def create_patient(
         birth_date=getattr(patient, "birth_date", None),
         notes=getattr(patient, "notes", None),
 
-        # ✅ Ficha de identificación (si el schema ya los trae, se guardan; si no, quedan None)
+        # ✅ NUEVOS
+        expediente_number=getattr(patient, "expediente_number", None),
+        alias=getattr(patient, "alias", None),
+
+        # ✅ Ficha
         sex=getattr(patient, "sex", None),
         marital_status=getattr(patient, "marital_status", None),
         occupation=getattr(patient, "occupation", None),
@@ -136,9 +113,7 @@ def create_patient(
         emergency_contact_name=getattr(patient, "emergency_contact_name", None),
         emergency_contact_phone=getattr(patient, "emergency_contact_phone", None),
 
-        # ✅ SIEMPRE se guardan bajo la psicóloga objetivo correcta
         user_id=target_user_id,
-
         created_by=current_user.id
     )
 
@@ -155,11 +130,9 @@ def get_patients(
 ):
     q = db.query(Patient).filter(Patient.is_active == True)
 
-    # ✅ Admin ve todo
     if current_user.role == "admin":
         return q.order_by(Patient.id.desc()).all()
 
-    # ✅ Psych / Assistant: solo los del owner objetivo
     target_user_id = get_target_user_id(db, current_user)
     return q.filter(Patient.user_id == target_user_id).order_by(Patient.id.desc()).all()
 
@@ -189,7 +162,6 @@ def update_patient(
 
     data = _model_to_dict_exclude_unset(patient_data)
 
-    # ✅ Si cambian birth_date y no mandan age, recalculamos edad automáticamente
     if "birth_date" in data and data.get("birth_date") and "age" not in data:
         data["age"] = _calc_age(data["birth_date"])
 
