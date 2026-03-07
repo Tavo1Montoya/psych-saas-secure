@@ -8,9 +8,9 @@ import { buildSuccessMessage } from "../utils/successMessage.js";
 import { getCurrentRoleFromStorage } from "../utils/currentRole.js";
 
 export default function Patients() {
+  
   const [items, setItems] = useState([]);
-
-  // Modal nuevo paciente
+    // Modal nuevo paciente
   const [open, setOpen] = useState(false);
 
   // Modal ficha identificación
@@ -56,6 +56,7 @@ export default function Patients() {
 
   const [savingFicha, setSavingFicha] = useState(false);
   const currentRole = getCurrentRoleFromStorage();
+  
 
   async function load() {
     const data = await PatientsAPI.list();
@@ -237,20 +238,51 @@ export default function Patients() {
     }
   }
 
-  const tableRows = useMemo(() => items || [], [items]);
+const tableRows = useMemo(() => items || [], [items]);
+const totalPatients = tableRows.length;
 
   return (
     <div className="grid">
       {/* Header */}
       <div className="row pageHeader">
         <div>
-          <h1 className="h1">Pacientes</h1>
+                    <h1 className="h1">Pacientes</h1>
           <p className="p">Gestión de pacientes del consultorio.</p>
         </div>
         <div className="spacer" />
         <button className="btn btnPrimary btnInline" onClick={() => setOpen(true)}>
           + Nuevo
         </button>
+      </div>
+
+      {/* Resumen rápido */}
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <div className="card cardPad" style={{ minHeight: 92 }}>
+          <div className="label" style={{ marginTop: 0 }}>
+            Pacientes registrados
+          </div>
+
+          <div
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              lineHeight: 1.1,
+              color: "var(--text)",
+            }}
+          >
+            {totalPatients}
+          </div>
+
+          <div className="p" style={{ marginTop: 6 }}>
+            Total activo en el consultorio
+          </div>
+        </div>
       </div>
 
       {/* Tabla */}
