@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, Users, Calendar, NotebookPen, Ban } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { useEffect, useMemo, useState } from "react";
@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 export default function AppLayout() {
   const { role, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // ✅ Sidebar en móvil (drawer)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,13 +31,13 @@ export default function AppLayout() {
     role;
 
   const menu = useMemo(() => ([
-    ...(role !== "assistant"
-      ? [{ to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> }]
-      : []),
+    // ✅ Dashboard YA visible para assistant
+    { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
 
     { to: "/patients", label: "Pacientes", icon: <Users size={18} /> },
     { to: "/appointments", label: "Citas", icon: <Calendar size={18} /> },
 
+    // ✅ Notas sigue oculto para assistant si así lo deseas
     ...(role !== "assistant"
       ? [{ to: "/notes", label: "Notas", icon: <NotebookPen size={18} /> }]
       : []),
@@ -44,17 +45,15 @@ export default function AppLayout() {
     { to: "/blocks", label: "Bloqueos", icon: <Ban size={18} /> },
   ]), [role]);
 
-  // ✅ Cierra sidebar al cambiar de ruta (cuando das click a un link)
+  // ✅ Cierra sidebar al cambiar de ruta
   useEffect(() => {
     setSidebarOpen(false);
-  }, [location?.pathname]); // si te marca error, bórralo y no pasa nada
+  }, [location.pathname]);
 
-  // ✅ Año automático
   const year = new Date().getFullYear();
 
   return (
     <div className="layout">
-      {/* ✅ Overlay para móvil */}
       {sidebarOpen && <div className="sidebarOverlay" onClick={() => setSidebarOpen(false)} />}
 
       <aside className={`sidebar ${sidebarOpen ? "isOpen" : ""}`}>
@@ -77,7 +76,7 @@ export default function AppLayout() {
               key={item.to}
               to={item.to}
               className={linkClass}
-              onClick={() => setSidebarOpen(false)} // ✅ en móvil cierra al navegar
+              onClick={() => setSidebarOpen(false)}
             >
               {item.icon} {item.label}
             </NavLink>
@@ -90,15 +89,13 @@ export default function AppLayout() {
           </button>
         </div>
 
-        {/* ✅ Footer fijo del sidebar */}
         <div className="sidebarFooter">
-          © {year} Gustavo Montoya. All rights reserved.
+          ©️ {year} Gustavo Montoya. All rights reserved.
         </div>
       </aside>
 
       <main className="content">
         <div className="topbar">
-          {/* ✅ Botón hamburguesa SOLO se verá en móvil por CSS */}
           <button
             className="btnIcon mobileOnly"
             type="button"

@@ -10,6 +10,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
+    owner_user_id: Optional[int] = None
 
 
 # 🔹 Para login (NO necesita role)
@@ -18,9 +19,10 @@ class UserLogin(BaseModel):
     password: str
 
 
-# ✅ NUEVO: Para que el ADMIN cree usuarios desde Swagger/panel admin
+# ✅ Para que el ADMIN cree usuarios
 class AdminUserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     role: UserRole
-    full_name: Optional[str] = None  # opcional por si luego lo quieres mostrar en UI
+    full_name: Optional[str] = None
+    owner_user_id: Optional[int] = None

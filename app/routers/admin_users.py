@@ -20,12 +20,14 @@ def list_users(
     current_user: User = Depends(require_roles(["admin"]))
 ):
     users = db.query(User).order_by(User.id.desc()).all()
+
     return [
         {
             "id": u.id,
             "email": u.email,
             "role": u.role,
             "is_active": u.is_active,
+            "owner_user_id": u.owner_user_id,
         }
         for u in users
     ]
@@ -47,17 +49,43 @@ def create_user(
     if exists:
         raise HTTPException(status_code=409, detail="Ya existe un usuario con ese email")
 
+    owner_user_id = payload.owner_user_id
+
+    # ✅ Si es assistant, exigir psychologist asignada
+    if role == "assistant":
+        if not owner_user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Assistant requiere owner_user_id (psicóloga asignada)"
+            )
+
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == owner_user_id,
+                User.role == "psychologist",
+                User.is_active == True
+            )
+            .first()
+        )
+
+        if not owner:
+            raise HTTPException(
+                status_code=404,
+                detail="La psicóloga asignada no existe o no está activa"
+            )
+
+    else:
+        # psychologist/admin no necesitan owner
+        owner_user_id = None
+
     user = User(
         email=email,
         hashed_password=get_password_hash(payload.password),
         role=role,
         is_active=True,
+        owner_user_id=owner_user_id,
     )
-
-    # Si tu modelo User NO tiene full_name, no lo asignamos para no romper nada.
-    # Si sí lo tiene, descomenta esto:
-    # if payload.full_name:
-    #     user.full_name = payload.full_name.strip()
 
     db.add(user)
     db.commit()
@@ -68,6 +96,7 @@ def create_user(
         "email": user.email,
         "role": user.role,
         "is_active": user.is_active,
+        "owner_user_id": user.owner_user_id,
     }
 
 
@@ -78,6 +107,7 @@ def deactivate_user(
     current_user: User = Depends(require_roles(["admin"]))
 ):
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado o ya desactivado")
 
@@ -86,4 +116,5 @@ def deactivate_user(
 
     user.is_active = False
     db.commit()
+
     return {"message": "Usuario desactivado correctamente"}

@@ -14,18 +14,11 @@ from app.core.security import (
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# ✅ Por defecto NO permite registro público
-# (Solo si en .env pones ALLOW_PUBLIC_REGISTER=true)
 ALLOW_PUBLIC_REGISTER = os.getenv("ALLOW_PUBLIC_REGISTER", "false").lower() == "true"
 
 
-# -------------------------
-# REGISTER (solo si se habilita)
-# -------------------------
 @router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
-
-    # ✅ Si ya decidiste "solo admin crea usuarios", bloquea aquí
     if not ALLOW_PUBLIC_REGISTER:
         raise HTTPException(
             status_code=403,
@@ -36,15 +29,42 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email ya registrado")
 
-    # ✅ Seguridad: nadie se registra como admin desde aquí
     allowed_roles = ["psychologist", "assistant"]
     role = user.role if user.role in allowed_roles else "psychologist"
+
+    owner_user_id = user.owner_user_id
+
+    if role == "assistant":
+        if not owner_user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Assistant requiere owner_user_id (psicóloga asignada)"
+            )
+
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == owner_user_id,
+                User.role == "psychologist",
+                User.is_active == True
+            )
+            .first()
+        )
+
+        if not owner:
+            raise HTTPException(
+                status_code=404,
+                detail="La psicóloga asignada no existe o no está activa"
+            )
+    else:
+        owner_user_id = None
 
     new_user = User(
         email=user.email,
         password=hash_password(user.password),
         role=role,
-        is_active=True  # ✅ por si tu modelo lo maneja
+        is_active=True,
+        owner_user_id=owner_user_id,
     )
 
     db.add(new_user)
@@ -54,21 +74,16 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     return {"message": "Usuario creado correctamente"}
 
 
-# -------------------------
-# LOGIN (OAuth2 estándar)
-# -------------------------
 @router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    # OAuth2 usa "username" como campo del email
     user = db.query(User).filter(User.email == form_data.username).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    # ✅ Si tu modelo tiene is_active (por tu screenshot sí)
     if hasattr(user, "is_active") and not user.is_active:
         raise HTTPException(status_code=401, detail="Usuario desactivado")
 

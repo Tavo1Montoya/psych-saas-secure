@@ -15,13 +15,18 @@ import Privacy from "./pages/Privacy";
 import { useAuth } from "./auth/useAuth";
 import "./styles/global.css";
 
-// ✅ Redirect inicial por rol (assistant -> patients, demás -> dashboard)
+// ✅ Redirect inicial por rol
 function RoleIndexRedirect() {
   const { role } = useAuth();
 
   if (!role) return <div style={{ padding: 20 }}>Cargando permisos...</div>;
 
-  const to = role === "assistant" ? "/patients" : "/dashboard";
+  // ✅ assistant ahora también entra a dashboard
+  const to =
+    role === "assistant" || role === "psychologist" || role === "admin"
+      ? "/dashboard"
+      : "/patients";
+
   return <Navigate to={to} replace />;
 }
 
@@ -30,16 +35,15 @@ export default function App() {
     <Routes>
       {/* Público */}
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
 
-      {/* Privado: necesita login */}
+      {/* Privado */}
       <Route element={<ProtectedRoute />}>
-        {/* Layout privado */}
         <Route element={<AppLayout />}>
-          {/* ✅ IMPORTANTE: ya NO mandamos fijo a /dashboard */}
           <Route index element={<RoleIndexRedirect />} />
 
-          {/* ✅ Dashboard SOLO admin + psychologist (assistant NO) */}
-          <Route element={<RequireRole allowedRoles={["admin", "psychologist"]} />}>
+          {/* ✅ Dashboard AHORA también para assistant */}
+          <Route element={<RequireRole allowedRoles={["admin", "psychologist", "assistant"]} />}>
             <Route path="/dashboard" element={<Dashboard />} />
           </Route>
 
@@ -50,7 +54,7 @@ export default function App() {
             <Route path="/blocks" element={<Blocks />} />
           </Route>
 
-          {/* ✅ Notas: SOLO psychologist + admin */}
+          {/* ✅ Notas: si quieres que assistant siga SIN entrar, lo dejamos igual */}
           <Route element={<RequireRole allowedRoles={["admin", "psychologist"]} />}>
             <Route path="/notes" element={<Notes />} />
           </Route>
@@ -60,7 +64,6 @@ export default function App() {
       {/* Fallbacks */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/privacy" element={<Privacy />} />
     </Routes>
   );
 }
