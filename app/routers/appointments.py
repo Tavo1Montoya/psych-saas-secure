@@ -104,14 +104,20 @@ def _normalize_status_param(status: Optional[str]) -> Optional[str]:
     return s
 
 def _validate_no_past(start_dt: datetime):
-    # Si viene sin timezone, asumimos UTC para evitar crash
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    """
+    Valida que la cita no esté en el pasado.
 
-    now_utc = datetime.now(timezone.utc)
+    IMPORTANTE:
+    En este proyecto el frontend envía datetime-local sin zona horaria,
+    por lo que aquí lo tratamos como hora local naive del sistema.
+    """
+    now_local = datetime.now()
 
-    # Comparamos todo en UTC (aware vs aware)
-    if start_dt.astimezone(timezone.utc) < now_utc:
+    # Si llega aware, lo convertimos a naive para comparar consistente
+    if start_dt.tzinfo is not None:
+        start_dt = start_dt.replace(tzinfo=None)
+
+    if start_dt < now_local:
         raise HTTPException(status_code=400, detail="La cita no puede estar en el pasado")
 
 
@@ -295,7 +301,7 @@ def _validate_patient_no_double_booking(
         Appointment.user_id == target_user_id,
         Appointment.patient_id == patient_id,
         Appointment.status == "scheduled",
-        Appointment.start_time >= datetime.utcnow()
+        Appointment.start_time >= datetime.now()
     )
 
     if exclude_id is not None:
@@ -548,7 +554,7 @@ def get_availability(
     cur = d_from
 
     # ✅ “ahora” en UTC-aware
-    now_utc = datetime.now(timezone.utc)
+    now_local = datetime.now()
 
     while cur <= d_to:
         weekday = cur.weekday()
@@ -574,21 +580,23 @@ def get_availability(
             candidate_start = t
             candidate_end = t + timedelta(minutes=duration_minutes)
 
-            # ✅ Normalizamos candidatos a UTC-aware para comparar con now_utc y appt_ranges
-            candidate_start_utc = _as_utc_aware(candidate_start)
-            candidate_end_utc = _as_utc_aware(candidate_end)
+            candidate_start_local = candidate_start
+            candidate_end_local = candidate_end
 
-            # 1️⃣ Saltar slots pasados
-            if candidate_start_utc < now_utc:
-                t += timedelta(minutes=slot_minutes)
-                continue
+# 1️⃣ Saltar slots pasados
+            if candidate_start_local < now_local:
+             t += timedelta(minutes=slot_minutes)
+             continue
 
-            # 2️⃣ Revisar conflicto con citas existentes
+# 2️⃣ Revisar conflicto con citas existentes
             conflict = False
             for (ap_start_utc, ap_end_utc) in appt_ranges:
-                if (candidate_start_utc < ap_end_utc) and (ap_start_utc < candidate_end_utc):
-                    conflict = True
-                    break
+             ap_start_local = ap_start_utc.replace(tzinfo=None)
+             ap_end_local = ap_end_utc.replace(tzinfo=None)
+
+             if (candidate_start_local < ap_end_local) and (ap_start_local < candidate_end_local):
+              conflict = True
+              break
 
             # 3️⃣ Si no hay conflicto, agregar slot
             if not conflict:
