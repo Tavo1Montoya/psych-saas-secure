@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta, time, timezone
+from zoneinfo import ZoneInfo
 
 from app.core.permissions import (
     ensure_can_edit_appointment,
@@ -17,8 +18,6 @@ from app.core.auth import get_current_user, require_roles
 from app.models.user import User
 from app.schemas.appointment import AppointmentCreate, AppointmentResponse, AppointmentUpdate
 from app.models.clinic_settings import ClinicSettings
-
-# (si lo estás usando)
 from app.models.appointment_block import AppointmentBlock
 
 router = APIRouter(
@@ -27,16 +26,13 @@ router = APIRouter(
 )
 
 ALLOWED_ROLES = ["admin", "psychologist", "assistant"]
+LOCAL_TZ = ZoneInfo("America/Mexico_City")
 
 
 # =========================
 # ✅ Helper: convertir Appointment -> AppointmentResponse con patient_name
 # =========================
 def _appointment_to_response(appt: Appointment, patient_name: Optional[str] = None) -> dict:
-    """
-    Convierte un Appointment ORM a dict compatible con AppointmentResponse,
-    agregando patient_name sin modificar el modelo.
-    """
     return {
         "id": appt.id,
         "patient_id": appt.patient_id,
@@ -46,7 +42,6 @@ def _appointment_to_response(appt: Appointment, patient_name: Optional[str] = No
         "status": appt.status,
         "notes": appt.notes,
         "patient_name": patient_name,
-
         "is_active": appt.is_active,
         "created_at": appt.created_at,
         "updated_at": appt.updated_at,
@@ -56,20 +51,21 @@ def _appointment_to_response(appt: Appointment, patient_name: Optional[str] = No
 
 
 # =========================
-# Clinic Settings (Opción A)
+# Clinic Settings
 # =========================
 def get_settings(db: Session) -> ClinicSettings:
-    """
-    Obtiene la configuración de la clínica (un solo registro).
-    Si no existe, la crea con defaults:
-    L–D 09:00–21:00
-    """
     settings = db.query(ClinicSettings).first()
     if not settings:
         settings = ClinicSettings(
             start_time=time(8, 0),
             end_time=time(21, 0),
-            mon=True, tue=True, wed=True, thu=True, fri=True, sat=True, sun=True
+            mon=True,
+            tue=True,
+            wed=True,
+            thu=True,
+            fri=True,
+            sat=True,
+            sun=True
         )
         db.add(settings)
         db.commit()
@@ -80,7 +76,7 @@ def get_settings(db: Session) -> ClinicSettings:
 def _as_utc_aware(dt: datetime) -> datetime:
     """
     Convierte cualquier datetime a UTC-aware.
-    - Si viene naive (sin tz), asumimos que ya está en UTC (porque backend trabaja en UTC).
+    - Si viene naive, asumimos que ya está en UTC.
     - Si viene aware, lo convertimos a UTC.
     """
     if dt is None:
@@ -89,51 +85,41 @@ def _as_utc_aware(dt: datetime) -> datetime:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
+
 def _normalize_status_param(status: Optional[str]) -> Optional[str]:
-    """
-    Normaliza status recibido por query param.
-    Acepta: no-show, noshow, no_show.
-    """
     if not status:
         return None
-    s = status.strip().lower()
 
+    s = status.strip().lower()
     if s in ["no-show", "noshow", "no_show"]:
         return "no_show"
 
     return s
 
+
 def _validate_no_past(start_dt: datetime):
     """
-    Valida que la cita no esté en el pasado.
-
-    IMPORTANTE:
-    En este proyecto el frontend envía datetime-local sin zona horaria,
-    por lo que aquí lo tratamos como hora local naive del sistema.
+    Valida que la cita no esté en el pasado usando la zona horaria local del consultorio.
+    Esto evita diferencias entre localhost y Railway (UTC).
     """
-    now_local = datetime.now()
+    now_local = datetime.now(LOCAL_TZ)
 
-    # Si llega aware, lo convertimos a naive para comparar consistente
-    if start_dt.tzinfo is not None:
-        start_dt = start_dt.replace(tzinfo=None)
+    if start_dt.tzinfo is None:
+        start_local = start_dt.replace(tzinfo=LOCAL_TZ)
+    else:
+        start_local = start_dt.astimezone(LOCAL_TZ)
 
-    if start_dt < now_local:
+    if start_local < now_local:
         raise HTTPException(status_code=400, detail="La cita no puede estar en el pasado")
 
 
 def validate_within_working_hours(db: Session, start_dt: datetime, duration_minutes: int):
-    """
-    Valida:
-    - Día habilitado (mon..sun)
-    - Hora dentro del rango settings.start_time .. settings.end_time
-    - La cita NO cruza al día siguiente
-    """
     if duration_minutes is None or duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="duration_minutes debe ser mayor a 0")
 
     settings = get_settings(db)
 
-    weekday = start_dt.weekday()  # 0=lun ... 6=dom
+    weekday = start_dt.weekday()
     day_enabled = {
         0: settings.mon,
         1: settings.tue,
@@ -149,21 +135,18 @@ def validate_within_working_hours(db: Session, start_dt: datetime, duration_minu
 
     end_dt = start_dt + timedelta(minutes=duration_minutes)
 
-    # No permitir cruzar al día siguiente
     if end_dt.date() != start_dt.date():
         raise HTTPException(status_code=400, detail="La cita no puede cruzar al día siguiente (fuera de horario)")
 
     start_t = start_dt.time()
     end_t = end_dt.time()
 
-    # Debe iniciar dentro del horario
     if start_t < settings.start_time or start_t >= settings.end_time:
         raise HTTPException(
             status_code=400,
             detail=f"La cita debe iniciar dentro del horario permitido ({settings.start_time}–{settings.end_time})"
         )
 
-    # Debe terminar dentro del horario (permitimos terminar EXACTAMENTE a end_time)
     if end_t > settings.end_time or end_t <= settings.start_time:
         raise HTTPException(
             status_code=400,
@@ -190,12 +173,6 @@ def _ensure_not_no_show(appt: Appointment):
 
 
 def get_owner_user(db: Session) -> User:
-    """
-    Obtiene automáticamente a la psicóloga (role='psychologist').
-
-    ✅ Este sistema asume UNA sola psicóloga activa.
-    Si hay más de una, lanza error para evitar que el assistant apunte a otra agenda.
-    """
     owners = (
         db.query(User)
         .filter(User.role == "psychologist", User.is_active == True)
@@ -217,26 +194,14 @@ def get_owner_user(db: Session) -> User:
 
     return owners[0]
 
+
 def get_target_user_id(db: Session, current_user: User) -> int:
-    """
-    Define a quién pertenece la agenda:
-    - psychologist: su propia agenda
-    - assistant: agenda de la psicóloga
-    - admin: su propia agenda por default (admin puede ver todo en list)
-    """
     if current_user.role == "assistant":
         return get_owner_user(db).id
     return current_user.id
 
 
 def _patient_access_query(db: Session, current_user: User, patient_id: int):
-    """
-    Reglas de acceso al paciente:
-    - admin: cualquiera activo
-    - psychologist: solo sus pacientes
-    - assistant: pacientes de la psicóloga (owner) Y también los que el assistant haya creado,
-                para evitar el 404 cuando el assistant registró el paciente.
-    """
     base = db.query(Patient).filter(
         Patient.id == patient_id,
         Patient.is_active == True
@@ -249,7 +214,6 @@ def _patient_access_query(db: Session, current_user: User, patient_id: int):
         owner_id = get_owner_user(db).id
         return base.filter(Patient.user_id.in_([owner_id, current_user.id]))
 
-    # psychologist
     return base.filter(Patient.user_id == current_user.id)
 
 
@@ -260,11 +224,6 @@ def _validate_overlap(
     new_end: datetime,
     exclude_id: Optional[int] = None
 ):
-    """
-    ✅ Valida traslape contra agenda objetivo (user_id = target_user_id)
-    Normaliza todo a UTC-aware para evitar:
-    TypeError: can't compare offset-naive and offset-aware datetimes
-    """
     new_start_utc = _as_utc_aware(new_start)
     new_end_utc = _as_utc_aware(new_end)
 
@@ -272,6 +231,7 @@ def _validate_overlap(
         Appointment.is_active == True,
         Appointment.user_id == target_user_id
     )
+
     if exclude_id is not None:
         q = q.filter(Appointment.id != exclude_id)
 
@@ -285,6 +245,7 @@ def _validate_overlap(
         if overlap:
             raise HTTPException(status_code=400, detail="Ya existe una cita con ese horario")
 
+
 def _validate_patient_no_double_booking(
     db: Session,
     target_user_id: int,
@@ -292,16 +253,14 @@ def _validate_patient_no_double_booking(
     new_start: datetime,
     exclude_id: Optional[int] = None
 ):
-    """
-    Regla A:
-    Un paciente NO puede tener otra cita 'scheduled' futura en la misma agenda (user_id = target_user_id).
-    """
+    now_local_naive = datetime.now(LOCAL_TZ).replace(tzinfo=None)
+
     q = db.query(Appointment).filter(
         Appointment.is_active == True,
         Appointment.user_id == target_user_id,
         Appointment.patient_id == patient_id,
         Appointment.status == "scheduled",
-        Appointment.start_time >= datetime.now()
+        Appointment.start_time >= now_local_naive
     )
 
     if exclude_id is not None:
@@ -313,19 +272,14 @@ def _validate_patient_no_double_booking(
             status_code=400,
             detail=f"Este paciente ya tiene una cita agendada (cita #{existing.id} el {existing.start_time})."
         )
-# ✅ Bloqueos (AppointmentBlock) - Evitar agendar dentro de rangos bloqueados
+
+
 def _validate_not_blocked(
     db: Session,
     target_user_id: int,
     start_dt: datetime,
     duration_minutes: int
 ):
-    """
-    Valida que NO exista un bloqueo activo que traslape con el rango:
-    [start_dt, end_dt)
-
-    Usa UTC-aware para evitar errores naive/aware.
-    """
     if duration_minutes is None or duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="duration_minutes debe ser mayor a 0")
 
@@ -334,7 +288,6 @@ def _validate_not_blocked(
     start_utc = _as_utc_aware(start_dt)
     end_utc = _as_utc_aware(end_dt)
 
-    # Traemos bloqueos activos de esa agenda (user_id = target_user_id)
     blocks = db.query(AppointmentBlock).filter(
         AppointmentBlock.is_active == True,
         AppointmentBlock.user_id == target_user_id
@@ -361,36 +314,29 @@ def create_appointment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALLOWED_ROLES))
 ):
-    # 1) no pasado
     _validate_no_past(data.start_time)
-
-    # 2) horario clínica
     validate_within_working_hours(db, data.start_time, data.duration_minutes)
 
-    # 3) paciente existe y accesible
     patient = _patient_access_query(db, current_user, data.patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Paciente no encontrado o sin acceso")
 
-    # 4) agenda objetivo (assistant -> psicóloga)
     target_user_id = get_target_user_id(db, current_user)
 
-    # ✅ 4.1) Validar que NO esté bloqueado (a nivel agenda objetivo)
     _validate_not_blocked(db, target_user_id, data.start_time, data.duration_minutes)
-    # ✅ 5) traslape (CREATE: aquí NO existe appt, se valida contra target_user_id)
+
     new_start = data.start_time
     new_duration = data.duration_minutes
     new_end = new_start + timedelta(minutes=new_duration)
-    
+
     _validate_patient_no_double_booking(
-       db,
-       target_user_id=target_user_id,
-       patient_id=data.patient_id,
-       new_start=data.start_time
-)
+        db=db,
+        target_user_id=target_user_id,
+        patient_id=data.patient_id,
+        new_start=data.start_time
+    )
     _validate_overlap(db, target_user_id, new_start, new_end)
 
-    # 6) crear
     appt = Appointment(
         patient_id=data.patient_id,
         user_id=target_user_id,
@@ -405,40 +351,30 @@ def create_appointment(
     db.commit()
     db.refresh(appt)
 
-    # ✅ devolver con patient_name
     return _appointment_to_response(appt, patient_name=getattr(patient, "full_name", None))
+
 
 @router.get("/", response_model=List[AppointmentResponse])
 def list_appointments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-
-    # ✅ filtros
     status: Optional[str] = None,
     patient_id: Optional[int] = None,
-
-    # ✅ rango fechas
     date_from: Optional[str] = None,
     date_to: Optional[str] = None
 ):
-    # ✅ Normalizar status (acepta no-show / noshow)
     status_norm = _normalize_status_param(status)
 
-    # ✅ Regla:
-    # - Por defecto: solo is_active=True
-    # - Si filtras status=cancelled: permitimos incluir canceladas aunque is_active=False
     query = db.query(Appointment)
 
     if status_norm != "cancelled":
         query = query.filter(Appointment.is_active == True)
         query = query.filter(Appointment.patient.has(Patient.is_active == True))
 
-    # ✅ Admin ve todo, otros por agenda objetivo
     if current_user.role != "admin":
         target_user_id = get_target_user_id(db, current_user)
         query = query.filter(Appointment.user_id == target_user_id)
 
-    # ✅ filtro por status
     if status_norm:
         allowed = {"scheduled", "completed", "cancelled", "no_show"}
         if status_norm not in allowed:
@@ -448,11 +384,9 @@ def list_appointments(
             )
         query = query.filter(Appointment.status == status_norm)
 
-    # ✅ filtro por paciente
     if patient_id is not None:
         query = query.filter(Appointment.patient_id == patient_id)
 
-    # ✅ filtro por rango de fechas
     if date_from:
         try:
             start = datetime.fromisoformat(date_from + "T00:00:00")
@@ -467,8 +401,6 @@ def list_appointments(
             raise HTTPException(status_code=400, detail="date_to inválido. Usa YYYY-MM-DD")
         query = query.filter(Appointment.start_time <= end)
 
-    # ✅ join para nombre del paciente
-    # (opcional) agregamos Patient.is_active==True para no “revivir” pacientes desactivados
     query = query.outerjoin(
         Patient,
         (Patient.id == Appointment.patient_id) & (Patient.is_active == True)
@@ -479,7 +411,9 @@ def list_appointments(
     result = []
     for appt, full_name in rows:
         result.append(_appointment_to_response(appt, patient_name=full_name))
+
     return result
+
 
 @router.get("/availability", operation_id="get_appointments_availability")
 def get_availability(
@@ -492,8 +426,8 @@ def get_availability(
 ):
     """
     Devuelve slots disponibles según:
-    - ClinicSettings (días habilitados + horario)
-    - Agenda objetivo (assistant -> agenda de la psicóloga)
+    - ClinicSettings
+    - Agenda objetivo
     - Traslapes con citas existentes
     """
     if not date_from or not date_to:
@@ -514,17 +448,12 @@ def get_availability(
     if duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="duration_minutes debe ser > 0")
 
-    # ✅ agenda objetivo (assistant -> psicóloga)
     target_user_id = get_target_user_id(db, current_user)
-
-    # ✅ settings de clínica
     settings = get_settings(db)
 
-    # ✅ rango de consulta (naive local del backend, pero normalizamos a UTC-aware donde toca)
     range_start_dt = datetime.combine(d_from, time(0, 0))
     range_end_dt = datetime.combine(d_to, time(23, 59, 59))
 
-    # ✅ Traer citas ACTIVAS agendadas (scheduled) dentro del rango
     appts = db.query(Appointment).filter(
         Appointment.is_active == True,
         Appointment.user_id == target_user_id,
@@ -533,7 +462,6 @@ def get_availability(
         Appointment.status.in_(["scheduled"])
     ).all()
 
-    # ✅ Guardar rangos de citas existentes en UTC-aware (evita issues naive/aware)
     appt_ranges = []
     for ap in appts:
         ap_start_utc = _as_utc_aware(ap.start_time)
@@ -552,14 +480,11 @@ def get_availability(
 
     days_output = []
     cur = d_from
-
-    # ✅ “ahora” en UTC-aware
-    now_local = datetime.now()
+    now_local = datetime.now(LOCAL_TZ)
 
     while cur <= d_to:
         weekday = cur.weekday()
 
-        # Día deshabilitado
         if not day_enabled_map.get(weekday, False):
             days_output.append({"date": cur.isoformat(), "slots": []})
             cur = cur + timedelta(days=1)
@@ -567,11 +492,8 @@ def get_availability(
 
         day_slots = []
 
-        # ✅ inicio/fin del día según settings
         day_start_dt = datetime.combine(cur, settings.start_time)
         day_end_dt = datetime.combine(cur, settings.end_time)
-
-        # último inicio posible para que quepa duration_minutes
         last_start = day_end_dt - timedelta(minutes=duration_minutes)
 
         t = day_start_dt
@@ -580,29 +502,25 @@ def get_availability(
             candidate_start = t
             candidate_end = t + timedelta(minutes=duration_minutes)
 
-            candidate_start_local = candidate_start
-            candidate_end_local = candidate_end
+            candidate_start_local = candidate_start.replace(tzinfo=LOCAL_TZ)
+            candidate_end_local = candidate_end.replace(tzinfo=LOCAL_TZ)
 
-# 1️⃣ Saltar slots pasados
             if candidate_start_local < now_local:
-             t += timedelta(minutes=slot_minutes)
-             continue
+                t += timedelta(minutes=slot_minutes)
+                continue
 
-# 2️⃣ Revisar conflicto con citas existentes
             conflict = False
             for (ap_start_utc, ap_end_utc) in appt_ranges:
-             ap_start_local = ap_start_utc.replace(tzinfo=None)
-             ap_end_local = ap_end_utc.replace(tzinfo=None)
+                ap_start_local = ap_start_utc.astimezone(LOCAL_TZ)
+                ap_end_local = ap_end_utc.astimezone(LOCAL_TZ)
 
-             if (candidate_start_local < ap_end_local) and (ap_start_local < candidate_end_local):
-              conflict = True
-              break
+                if (candidate_start_local < ap_end_local) and (ap_start_local < candidate_end_local):
+                    conflict = True
+                    break
 
-            # 3️⃣ Si no hay conflicto, agregar slot
             if not conflict:
                 day_slots.append(candidate_start.time().strftime("%H:%M"))
 
-            # avanzar
             t += timedelta(minutes=slot_minutes)
 
         days_output.append({"date": cur.isoformat(), "slots": day_slots})
@@ -618,8 +536,13 @@ def get_availability(
             "start_time": settings.start_time.strftime("%H:%M"),
             "end_time": settings.end_time.strftime("%H:%M"),
             "days_enabled": {
-                "mon": settings.mon, "tue": settings.tue, "wed": settings.wed, "thu": settings.thu,
-                "fri": settings.fri, "sat": settings.sat, "sun": settings.sun
+                "mon": settings.mon,
+                "tue": settings.tue,
+                "wed": settings.wed,
+                "thu": settings.thu,
+                "fri": settings.fri,
+                "sat": settings.sat,
+                "sun": settings.sun
             }
         },
         "days": days_output
@@ -697,20 +620,20 @@ def update_appointment(
 
     validate_within_working_hours(db, new_start, new_duration)
     _validate_overlap(db, appt.user_id, new_start, new_end, exclude_id=appt.id)
-    
+
+    _validate_patient_no_double_booking(
+        db=db,
+        target_user_id=appt.user_id,
+        patient_id=appt.patient_id,
+        new_start=new_start,
+        exclude_id=appt.id
+    )
+
     for field, value in data.dict(exclude_unset=True).items():
         setattr(appt, field, value)
 
     appt.updated_by = current_user.id
     appt.updated_at = datetime.utcnow()
-    _validate_patient_no_double_booking(
-    db,
-    target_user_id=appt.user_id,
-    patient_id=appt.patient_id,
-    new_start=new_start,
-    exclude_id=appt.id
-)
-
 
     db.commit()
     db.refresh(appt)
@@ -740,7 +663,6 @@ def cancel_appointment(
     if not appt:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
 
-    # ✅ (ARREGLADO) antes estaba mal indentado
     ensure_can_cancel_appointment(current_user, appt)
 
     appt.is_active = False
@@ -805,9 +727,6 @@ def complete_appointment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(ALLOWED_ROLES))
 ):
-    """
-    ✅ Marca una cita como COMPLETADA.
-    """
     query = db.query(Appointment).filter(
         Appointment.id == appointment_id,
         Appointment.is_active == True
