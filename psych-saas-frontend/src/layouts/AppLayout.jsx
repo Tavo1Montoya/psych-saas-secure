@@ -11,6 +11,9 @@ export default function AppLayout() {
   // ✅ Sidebar en móvil (drawer)
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // 🔥 NUEVO: estado aviso privacidad
+  const [showPrivacy, setShowPrivacy] = useState(false);
+
   function exit() {
     logout();
     navigate("/login");
@@ -31,13 +34,10 @@ export default function AppLayout() {
     role;
 
   const menu = useMemo(() => ([
-    // ✅ Dashboard YA visible para assistant
     { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-
     { to: "/patients", label: "Pacientes", icon: <Users size={18} /> },
     { to: "/appointments", label: "Citas", icon: <Calendar size={18} /> },
 
-    // ✅ Notas sigue oculto para assistant si así lo deseas
     ...(role !== "assistant"
       ? [{ to: "/notes", label: "Notas", icon: <NotebookPen size={18} /> }]
       : []),
@@ -45,7 +45,6 @@ export default function AppLayout() {
     { to: "/blocks", label: "Bloqueos", icon: <Ban size={18} /> },
   ]), [role]);
 
-  // ✅ Cierra sidebar al cambiar de ruta
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
@@ -83,10 +82,87 @@ export default function AppLayout() {
           ))}
         </nav>
 
+        {/* 🔥 BLOQUE CON LOGOUT + AVISO */}
         <div style={{ marginTop: 18 }}>
           <button className="btn btnDanger" onClick={exit} style={{ width: "100%" }}>
             Cerrar sesión
           </button>
+
+          {/* 🔥 BOTÓN AVISO */}
+          <button
+            onClick={() => setShowPrivacy(!showPrivacy)}
+            style={{
+              fontSize: 12,
+              opacity: 0.8,
+              textDecoration: "underline",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              marginTop: 10,
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            Aviso de privacidad
+          </button>
+
+          {/* 🔥 CONTENIDO DESPLEGABLE */}
+          {showPrivacy && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 12,
+                borderRadius: 10,
+                background: "#fff",
+                border: "1px solid var(--border)",
+                fontSize: 11,
+                color: "#444",
+                maxHeight: 300,
+                overflowY: "auto",
+                textAlign: "justify",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              }}
+            >
+              <strong>AVISO DE PRIVACIDAD DE DATOS PERSONALES Y SENSIBLES</strong>
+
+              <br /><br />
+
+              <strong>1. Se entiende como:</strong><br />
+              Consentimiento: manifestación de la voluntad del titular mediante la cual se efectúa el tratamiento de datos.<br />
+              Datos personales: información de una persona identificable.<br />
+              Datos sensibles: información íntima que puede generar riesgo o discriminación.<br />
+              Encargado: quien trata datos por cuenta del responsable.<br />
+              Responsable: quien decide sobre el tratamiento.<br />
+              Terapeuta: profesionista de salud mental encargado del tratamiento.<br />
+              Titular: persona a quien pertenecen los datos.<br />
+              Tratamiento: uso, almacenamiento o manejo de datos.<br />
+              Transferencia: comunicación de datos a terceros.<br /><br />
+
+              <strong>2.</strong> Los datos serán tratados por el psicoterapeuta responsable en Aguascalientes.<br /><br />
+
+              <strong>3.</strong> Finalidad: expediente clínico conforme a la Ley General de Salud.<br /><br />
+
+              <strong>4.</strong> Solo el terapeuta responsable tendrá acceso.<br /><br />
+
+              <strong>5.</strong> Los datos se almacenarán por 5 años.<br /><br />
+
+              <strong>6.</strong> Transferencias podrán realizarse para diagnóstico o atención médica.<br /><br />
+
+              <strong>7.</strong> El titular podrá solicitar acceso o modificación con identificación oficial.<br /><br />
+
+              <strong>8.</strong> Los datos no podrán cancelarse salvo disposición legal.<br /><br />
+
+              <strong>9.</strong> Cambios serán notificados.<br /><br />
+
+              <strong>10.</strong> Se protegerá la identidad del paciente.<br /><br />
+
+              <strong>11.</strong> Se observará la Ley Federal de Protección de Datos.<br /><br />
+
+              __________________________________________<br />
+              LIC. PHU. KARLA ISABEL MORA CALVILLO<br />
+              Aguascalientes, México
+            </div>
+          )}
         </div>
 
         <div className="sidebarFooter">
