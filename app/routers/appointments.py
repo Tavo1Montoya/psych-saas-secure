@@ -253,24 +253,27 @@ def _validate_patient_no_double_booking(
     new_start: datetime,
     exclude_id: Optional[int] = None
 ):
-    now_local_naive = datetime.now(LOCAL_TZ).replace(tzinfo=None)
+    """
+    Permite múltiples citas al mismo paciente,
+    pero evita duplicar exactamente el mismo horario.
+    """
 
     q = db.query(Appointment).filter(
         Appointment.is_active == True,
         Appointment.user_id == target_user_id,
         Appointment.patient_id == patient_id,
-        Appointment.status == "scheduled",
-        Appointment.start_time >= now_local_naive
+        Appointment.start_time == new_start
     )
 
     if exclude_id is not None:
         q = q.filter(Appointment.id != exclude_id)
 
     existing = q.first()
+
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Este paciente ya tiene una cita agendada (cita #{existing.id} el {existing.start_time})."
+            detail="Este paciente ya tiene una cita exactamente en ese horario."
         )
 
 

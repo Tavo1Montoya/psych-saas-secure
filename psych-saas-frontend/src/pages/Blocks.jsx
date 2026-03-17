@@ -140,8 +140,8 @@ export default function Blocks() {
             {items.map((b) => (
               <tr key={b.id}>
                 <td>#{b.id}</td>
-                <td>{b.start_time ? dayjs(b.start_time).format("YYYY-MM-DD HH:mm") : "—"}</td>
-                <td>{b.end_time ? dayjs(b.end_time).format("YYYY-MM-DD HH:mm") : "—"}</td>
+                <td>{b.start_time ? dayjs(b.start_time).format("DD.MM.YYYY HH:mm") : "—"}</td>
+                <td>{b.end_time ? dayjs(b.end_time).format("DD.MM.YYYY HH:mm") : "—"}</td>
                 <td>{b.reason || "—"}</td>
 
                 <td style={{ textAlign: "right" }}>

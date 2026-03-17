@@ -918,3 +918,23 @@ a:focus-visible{
   box-shadow: 0 0 0 3px var(--glow2);
   border-radius: 10px;
 }
+.search-container {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.search-input {
+  width: 150px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e0bce6;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: #ff9bfd;
+  box-shadow: 0 0 4px rgba(245, 150, 231, 0.4);
+}

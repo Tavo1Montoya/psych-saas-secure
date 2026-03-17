@@ -27,6 +27,7 @@ export default function Appointments() {
   // filtros
   const [date_from, setFrom] = useState("");
   const [date_to, setTo] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // status filter
   const [status, setStatus] = useState("");
@@ -94,7 +95,7 @@ export default function Appointments() {
   // =========================
   useEffect(() => {
     loadPatients();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =========================
@@ -144,20 +145,41 @@ export default function Appointments() {
   // abre modal y prellena fecha/hora
   // =========================
   const patientMap = useMemo(() => {
+     
     const m = new Map();
     for (const p of patients) m.set(p.id, p);
     return m;
   }, [patients]);
 
-  function getPatientLabel(appointment) {
-    const p = patientMap.get(appointment.patient_id);
-    return (
-      p?.full_name ||
-      p?.name ||
-      appointment?.patient_name ||
-      `patient_id:${appointment.patient_id}`
-    );
+  const patientAppointmentsCount = useMemo(() => {
+  const map = new Map();
+
+  for (const a of items) {
+    const month = dayjs(a.start_time).format("YYYY-MM");
+
+    if (!map.has(a.patient_id)) {
+      map.set(a.patient_id, {});
+    }
+
+    const months = map.get(a.patient_id);
+
+    months[month] = (months[month] || 0) + 1;
   }
+
+  return map;
+}, [items]);
+
+function getPatientLabel(appointment) {
+  const p = patientMap.get(appointment.patient_id);
+
+  return (
+    p?.full_name ||
+    p?.name ||
+    appointment?.patient_name ||
+    p?.alias ||
+    `patient_id:${appointment.patient_id}`
+  );
+}
 
   async function refreshAvailabilityIfOpen() {
     try {
@@ -393,6 +415,22 @@ export default function Appointments() {
   <div style={{ minWidth: 260, flex: "1 1 260px" }}>
     <label className="label">Paciente</label>
     <select className="select" value={patient_id} onChange={(e) => setPatientId(e.target.value)}>
+  {patient_id && (
+  <div style={{ marginTop: 6, color: "var(--muted)" }}>
+    {(() => {
+      const month = dayjs(start_time || new Date()).format("YYYY-MM");
+
+      const data = patientAppointmentsCount.get(Number(patient_id));
+      const count = data ? data[month] || 0 : 0;
+
+      if (!count) return null;
+
+      return `Este paciente tiene ${count} citas en este mes`;
+    })()}
+  </div>
+)}
+    
+
       <option value="">Todos</option>
       {patients.map((p) => (
         <option key={p.id} value={p.id}>
@@ -401,7 +439,20 @@ export default function Appointments() {
       ))}
     </select>
   </div>
-
+{/* Nuevo buscador por Alias */}
+<div className="mb-4">
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Buscar Paciente (Alias)
+  </label>
+  <input
+    type="text"
+    placeholder="Buscar por Alias"
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="w-full p-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-purple-500 outline-none"
+    style={{ borderRadius: '25px', paddingLeft: '15px' }} // Para que combine con tu UI
+  />
+</div>
   <div style={{ alignSelf: "end", display: "flex", gap: 8, flexWrap: "wrap" }}>
     <button className="btn" onClick={() => load()}>
       Filtrar
@@ -417,7 +468,7 @@ export default function Appointments() {
           <table className="table">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Alias</th>
                 <th>Paciente</th>
                 <th>Inicio</th>
                 <th>Duración</th>
@@ -426,63 +477,82 @@ export default function Appointments() {
               </tr>
             </thead>
 
-            <tbody>
-              {items.map((a) => (
-                <tr key={a.id}>
-                  <td>#{a.id}</td>
-                  <td>{getPatientLabel(a)}</td>
-                  <td>{dayjs(a.start_time).format("YYYY-MM-DD HH:mm")}</td>
-                  <td>{a.duration_minutes} min</td>
-                  <td>
-                    <StatusBadge status={a.status} />
-                  </td>
+          <tbody>
+            {items
+             .filter((a) => {
+                if (!searchTerm) return true;
 
-                  <td style={{ textAlign: "right" }}>
-                    <div
-                      className="row"
-                      style={{
-                        justifyContent: "flex-end",
-                        flexWrap: "nowrap",
-                        gap: 8,
-                        overflowX: "auto",
-                        maxWidth: "100%",
-                        paddingBottom: 2,
-                      }}
-                    >
-                      <button
-                        className="btn"
-                        style={{ whiteSpace: "nowrap" }}
-                        onClick={() => complete(a.id)}
-                      >
-                        Completada
-                      </button>
-                      <button
-                        className="btn"
-                        style={{ whiteSpace: "nowrap" }}
-                        onClick={() => noShow(a.id)}
-                      >
-                        No asistió
-                      </button>
-                      <button
-                        className="btn btnDanger"
-                        style={{ whiteSpace: "nowrap" }}
-                        onClick={() => cancel(a.id)}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                const p = patientMap.get(a.patient_id);
 
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ color: "var(--muted)" }}>
-                    Sin citas.
-                  </td>
-                </tr>
-              )}
-            </tbody>
+                const alias = (p?.alias || "").toLowerCase();
+                const name = (p?.full_name || "").toLowerCase();
+
+                const search = searchTerm.toLowerCase();
+
+                return alias.includes(search) || name.includes(search);
+              })
+              .map((a) => {
+                // Obtenemos el paciente del mapa para mostrar el alias
+                const p = patientMap.get(a.patient_id);
+                return (
+                  <tr key={a.id}>
+                    {/* Cambiamos el ID por el Alias del paciente */}
+                    <td style={{ fontWeight: 'bold' }}>{p?.alias || "---"}</td>
+                    
+                    <td>{getPatientLabel(a)}</td>
+
+                    <td>{dayjs(a.start_time).format("YYYY-MM-DD HH:mm")}</td>
+                    <td>{a.duration_minutes} min</td>
+                    <td>
+                      <StatusBadge status={a.status} />
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div
+                        className="row"
+                        style={{
+                          justifyContent: "flex-end",
+                          flexWrap: "nowrap",
+                          gap: 8,
+                          overflowX: "auto",
+                          maxWidth: "100%",
+                          paddingBottom: 2,
+                        }}
+                      >
+                        <button
+                          className="btn"
+                          style={{ whiteSpace: "nowrap" }}
+                          onClick={() => complete(a.id)}
+                        >
+                          Completada
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ whiteSpace: "nowrap" }}
+                          onClick={() => noShow(a.id)}
+                        >
+                          No asistió
+                        </button>
+                        <button
+                          className="btn btnDanger"
+                          style={{ whiteSpace: "nowrap" }}
+                          onClick={() => cancel(a.id)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ color: "var(--muted)" }}>
+                  Sin citas.
+                </td>
+              </tr>
+            )}
+          </tbody>
           </table>
         </div>
       </div>

@@ -16,9 +16,11 @@ export default function Patients() {
   // Modal ficha identificación
   const [openFicha, setOpenFicha] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState("")
 
   const [toast, setToast] = useState({ show: false, type: "info", message: "" });
 
+  
   // ✅ Campos modal nuevo paciente
   const [full_name, setFullName] = useState("");
   const [age, setAge] = useState("");
@@ -34,9 +36,9 @@ export default function Patients() {
 
   // ✅ Ficha editable
   const [ficha, setFicha] = useState({
+    alias: "",
     full_name: "",
     expediente_number: "",
-    alias: "",
     sex: "",
     age: "",
     marital_status: "",
@@ -158,9 +160,9 @@ export default function Patients() {
     setSelected(p);
 
     setFicha({
+      alias: p?.alias || "",
       full_name: p?.full_name || p?.name || "",
       expediente_number: p?.expediente_number || "",
-      alias: p?.alias || "",
       sex: p?.sex || "",
       age: p?.age != null ? String(p.age) : "",
       marital_status: p?.marital_status || "",
@@ -191,14 +193,14 @@ export default function Patients() {
       setSavingFicha(true);
 
       const payload = {
+        expediente_number: ficha.expediente_number?.trim() || undefined,
+        alias: ficha.alias?.trim() || undefined,
         full_name: ficha.full_name?.trim() || undefined,
         phone: ficha.phone?.trim() || undefined,
         address: ficha.address?.trim() || undefined,
 
         // ✅ NUEVOS
-        expediente_number: ficha.expediente_number?.trim() || undefined,
-        alias: ficha.alias?.trim() || undefined,
-
+        
         sex: ficha.sex?.trim() || undefined,
         marital_status: ficha.marital_status?.trim() || undefined,
         occupation: ficha.occupation?.trim() || undefined,
@@ -290,19 +292,39 @@ const totalPatients = tableRows.length;
         <div className="tableWrap">
           <table className="table patientsTable">
             <thead>
+              <div className="search-container">
+  <input
+    type="text"
+    placeholder="🔍 Buscar por alias..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    className="search-input"
+  />
+</div>
               <tr>
+                <th>Alias</th>
                 <th>N° Expediente</th>
                 <th>Nombre</th>
-                <th>Alias</th>
                 <th>Teléfono</th>
                 <th>Tel. emergencia</th>
                 <th></th>
               </tr>
             </thead>
-
+             
             <tbody>
-              {tableRows.map((p) => (
-                <tr key={p.id}>
+              
+              {tableRows
+                  .filter((p) =>
+                  (p.full_name || "")
+                    .toLowerCase()
+                    .includes(search.toLowerCase()) ||
+                  (p.alias || "")
+                    .toLowerCase()
+                    .includes(search.toLowerCase())
+                )
+                .map((p) => (
+                   <tr key={p.id}>
+                  <td>{p.alias || "—"}</td>
                   <td>{p.expediente_number || "—"}</td>
 
                   <td>
@@ -321,7 +343,6 @@ const totalPatients = tableRows.length;
                     </button>
                   </td>
 
-                  <td>{p.alias || "—"}</td>
                   <td>{p.phone || "—"}</td>
                   <td>{p.emergency_contact_phone || "—"}</td>
 
