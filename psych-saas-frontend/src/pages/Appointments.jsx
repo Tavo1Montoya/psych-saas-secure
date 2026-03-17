@@ -442,11 +442,11 @@ function getPatientLabel(appointment) {
 {/* Nuevo buscador por Alias */}
 <div className="mb-4">
   <label className="block text-sm font-medium text-gray-700 mb-1">
-    Buscar Paciente (Alias)
+    
   </label>
   <input
     type="text"
-    placeholder="Buscar por Alias"
+    placeholder="Buscar por alias"
     value={searchTerm}
     onChange={(e) => setSearchTerm(e.target.value)}
     className="w-full p-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-purple-500 outline-none"
