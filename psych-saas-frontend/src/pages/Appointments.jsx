@@ -501,7 +501,7 @@ function getPatientLabel(appointment) {
                     
                     <td>{getPatientLabel(a)}</td>
 
-                    <td>{dayjs(a.start_time).format("YYYY-MM-DD HH:mm")}</td>
+                    <td>{dayjs(a.start_time).format("DD/MM/YYYY HH:mm")}</td>
                     <td>{a.duration_minutes} min</td>
                     <td>
                       <StatusBadge status={a.status} />

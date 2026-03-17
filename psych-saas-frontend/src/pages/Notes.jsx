@@ -104,7 +104,7 @@ export default function Notes() {
 
   function apptLabel(a) {
     if (!a) return "Sin cita";
-    const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
+    const when = a.start_time ? dayjs(a.start_time).format("DD/MM/YYYY HH:mm") : `#${a.id}`;
     const st = labelStatusEs(a.status);
     return `${when} — ${st}`;
   }
@@ -265,7 +265,7 @@ export default function Notes() {
     const q = (search || "").toLowerCase().trim();
     if (q) {
       arr = arr.filter((g) => {
-        const latest = g.last_note_at ? dayjs(g.last_note_at).format("YYYY-MM-DD HH:mm") : "";
+        const latest = g.last_note_at ? dayjs(g.last_note_at).format("DD/MM/YYYY HH:mm") : "";
         const previewText = g.notes
           .map((n) =>
             `${n.subjective || ""} ${n.objective || ""} ${n.assessment || ""} ${n.plan || ""} ${n.content || ""}`
@@ -301,8 +301,8 @@ export default function Notes() {
       ? arr
       : arr.filter((n) => {
           const a = apptMap.get(n.appointment_id);
-          const when = a?.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : "Sin cita";
-          const created = n.created_at ? dayjs(n.created_at).format("YYYY-MM-DD HH:mm") : "";
+          const when = a?.start_time ? dayjs(a.start_time).format("DD/MM/YYYY HH:mm") : "Sin cita";
+          const created = n.created_at ? dayjs(n.created_at).format("DD/MM/YYYY HH:mm") : "";
           const type = labelNoteType(n.note_type);
 
           const hay =
@@ -318,9 +318,9 @@ export default function Notes() {
       const a = apptMap.get(n.appointment_id);
 
       const key = a?.start_time
-        ? dayjs(a.start_time).format("YYYY-MM-DD")
+        ? dayjs(a.start_time).format("DD/MM/YYYY")
         : n.created_at
-        ? dayjs(n.created_at).format("YYYY-MM-DD")
+        ? dayjs(n.created_at).format("DD/MM/YYYY")
         : "Sin fecha";
 
       if (!groups.has(key)) groups.set(key, []);
@@ -413,7 +413,7 @@ export default function Notes() {
               <tr key={g.patient_id}>
                 <td>{g.patient_name}</td>
                 <td>{g.notes.length}</td>
-                <td>{g.last_note_at ? dayjs(g.last_note_at).format("YYYY-MM-DD HH:mm") : "—"}</td>
+                <td>{g.last_note_at ? dayjs(g.last_note_at).format("DD/MM/YYYY HH:mm") : "—"}</td>
 
                 <td style={{ textAlign: "right" }}>
                   <div
@@ -488,7 +488,7 @@ export default function Notes() {
           >
             <option value="">Sin cita / nota libre</option>
             {patientAppointments.map((a) => {
-              const when = a.start_time ? dayjs(a.start_time).format("YYYY-MM-DD HH:mm") : `#${a.id}`;
+              const when = a.start_time ? dayjs(a.start_time).format("DD/MM/YYYY HH:mm") : `#${a.id}`;
               return (
                 <option key={a.id} value={a.id}>
                   #{a.id} — {when} — {a.status}
