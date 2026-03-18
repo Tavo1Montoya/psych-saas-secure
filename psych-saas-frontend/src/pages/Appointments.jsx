@@ -680,18 +680,42 @@ function getPatientLabel(appointment) {
                     </div>
                   ) : (
                     <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-                      {slots.map((t) => (
-                        <button
-                          key={`${dateStr}-${t}`}
-                          type="button"
-                          className="btn"
-                          style={{ padding: "8px 10px" }}
-                          onClick={() => handlePickSlot(dateStr, t)}
-                          title="Click para crear cita en este horario"
-                        >
-                          {t}
-                        </button>
-                      ))}
+                  {slots.map((slotRaw) => {
+                        // 🔥 compatibilidad: string o objeto
+                        const slot =
+                          typeof slotRaw === "string"
+                            ? { time: slotRaw, occupied: false }
+                            : slotRaw;
+
+                        return (
+                          <button
+                            key={`${dateStr}-${slot.time}`}
+                            type="button"
+                            className="btn"
+                            style={{
+                              padding: "8px 10px",
+                              background: slot.occupied ? "#ffe5e5" : "",
+                              border: slot.occupied ? "1px solid #ffb3b3" : "",
+                            }}
+                            onClick={() =>
+                              !slot.occupied && handlePickSlot(dateStr, slot.time)
+                            }
+                            title={
+                              slot.occupied
+                                ? `${slot.patient || ""} (${slot.alias || ""})`
+                                : "Click para crear cita en este horario"
+                            }
+                          >
+                            {slot.time}
+
+                            {slot.occupied && (
+                              <div style={{ fontSize: 10 }}>
+                                {slot.alias || slot.patient}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

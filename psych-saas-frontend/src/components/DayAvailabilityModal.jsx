@@ -95,6 +95,7 @@ export default function DayAvailabilityModal({
                       <div style={{ fontWeight: 900 }}>
                         {s.start} – {s.end}
                       </div>
+
                       <div
                         style={{
                           display: "inline-flex",
@@ -110,6 +111,13 @@ export default function DayAvailabilityModal({
                       >
                         {label}
                       </div>
+
+                      {/* 🔥 NUEVO: mostrar paciente */}
+                      {isBooked && (s.patient || s.alias) && (
+                        <div style={{ fontSize: 12, marginTop: 4, color: "#aaa" }}>
+                          {s.alias || s.patient}
+                        </div>
+                      )}
                     </div>
 
                     {isFree ? (

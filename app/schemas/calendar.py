@@ -19,9 +19,11 @@ class CalendarEventsResponse(BaseModel):
 
 
 class DaySlot(BaseModel):
-    start: str  # "HH:MM"
-    end: str    # "HH:MM"
-    status: SlotStatus
+    start: str
+    end: str
+    status: str
+    patient: Optional[str] = None
+    alias: Optional[str] = None
 
 
 class DaySlotsResponse(BaseModel):

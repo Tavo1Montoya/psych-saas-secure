@@ -8,7 +8,7 @@ from app.models.user import User
 from app.models.appointment import Appointment
 from app.models.appointment_block import AppointmentBlock
 from app.models.clinic_settings import ClinicSettings
-
+from app.models.patient import Patient
 from app.schemas.calendar import (
     CalendarEventsResponse,
     CalendarDaySummary,
@@ -290,7 +290,20 @@ def get_day_slots(
         .all()
     )
 
+    # =========================
+    # 🔥 NUEVO: MAPA DE PACIENTES (NO ROMPE NADA)
+    # =========================
+    patient_map = {}
+    for a in appts:
+        patient = db.query(Patient).filter(Patient.id == a.patient_id).first()
+        patient_map[a.id] = {
+            "name": getattr(patient, "full_name", None),
+            "alias": getattr(patient, "alias", None),
+        }
+
+    # =========================
     # Citas activas que sí ocupan horario
+    # =========================
     appt_ranges = []
     for a in appts:
         st = (a.status or "").lower()
@@ -301,7 +314,7 @@ def get_day_slots(
 
         a_start = a.start_time
         a_end = a.start_time + timedelta(minutes=int(a.duration_minutes or 0))
-        appt_ranges.append((a_start, a_end))
+        appt_ranges.append((a, a_start, a_end))  # 🔥 guardamos también el objeto a
 
     # Bloqueos
     block_ranges = [(b.start_time, b.end_time) for b in blocks]
@@ -312,6 +325,7 @@ def get_day_slots(
     while cur < day_close:
         end = cur + timedelta(minutes=slot_minutes)
         status = "free"
+        matched_ap = None  # 🔥 para saber qué paciente ocupa
 
         if not day_enabled:
             status = "blocked"
@@ -324,16 +338,22 @@ def get_day_slots(
 
             # booked por Appointment
             if status != "blocked":
-                for as_, ae in appt_ranges:
+                for a, as_, ae in appt_ranges:
                     if _overlap(cur, end, as_, ae):
                         status = "booked"
+                        matched_ap = a
                         break
 
+        # =========================
+        # 🔥 MODIFICACIÓN CLAVE AQUÍ
+        # =========================
         slots.append(
             DaySlot(
                 start=cur.time().strftime("%H:%M"),
                 end=end.time().strftime("%H:%M"),
                 status=status,
+                patient=patient_map.get(matched_ap.id)["name"] if status == "booked" and matched_ap else None,
+                alias=patient_map.get(matched_ap.id)["alias"] if status == "booked" and matched_ap else None,
             )
         )
 

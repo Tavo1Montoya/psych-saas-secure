@@ -242,8 +242,10 @@ def _validate_overlap(
         ap_end_utc = _as_utc_aware(ap.start_time + timedelta(minutes=ap.duration_minutes or 0))
 
         overlap = (new_start_utc < ap_end_utc) and (ap_start_utc < new_end_utc)
-        if overlap:
-            raise HTTPException(status_code=400, detail="Ya existe una cita con ese horario")
+
+        # 🔥 permitir citas pegadas exactas (ej: 17:30 después de 16:30-17:30)
+        if new_start_utc == ap_end_utc or new_end_utc == ap_start_utc:
+            overlap = False
 
 
 def _validate_patient_no_double_booking(
@@ -465,11 +467,20 @@ def get_availability(
         Appointment.status.in_(["scheduled"])
     ).all()
 
+    # 🔥 RANGOS CON PACIENTE
     appt_ranges = []
     for ap in appts:
         ap_start_utc = _as_utc_aware(ap.start_time)
         ap_end_utc = _as_utc_aware(ap.start_time + timedelta(minutes=ap.duration_minutes or 0))
-        appt_ranges.append((ap_start_utc, ap_end_utc))
+
+        patient = db.query(Patient).filter(Patient.id == ap.patient_id).first()
+
+        appt_ranges.append({
+            "start": ap_start_utc,
+            "end": ap_end_utc,
+            "patient_name": getattr(patient, "full_name", None),
+            "alias": getattr(patient, "alias", None)
+        })
 
     day_enabled_map = {
         0: settings.mon,
@@ -512,21 +523,37 @@ def get_availability(
                 t += timedelta(minutes=slot_minutes)
                 continue
 
-            conflict = False
-            for (ap_start_utc, ap_end_utc) in appt_ranges:
-                ap_start_local = ap_start_utc.astimezone(LOCAL_TZ)
-                ap_end_local = ap_end_utc.astimezone(LOCAL_TZ)
+            # 🔥 AQUÍ SE CORRIGE TODO
+            conflict = None
+
+            for ap in appt_ranges:
+                ap_start_local = ap["start"].astimezone(LOCAL_TZ)
+                ap_end_local = ap["end"].astimezone(LOCAL_TZ)
 
                 if (candidate_start_local < ap_end_local) and (ap_start_local < candidate_end_local):
-                    conflict = True
+                    conflict = ap
                     break
 
             if not conflict:
-                day_slots.append(candidate_start.time().strftime("%H:%M"))
+                day_slots.append({
+                    "time": candidate_start.time().strftime("%H:%M"),
+                    "occupied": False
+                })
+            else:
+                day_slots.append({
+                    "time": candidate_start.time().strftime("%H:%M"),
+                    "occupied": True,
+                    "patient": conflict["patient_name"],
+                    "alias": conflict["alias"]
+                })
 
             t += timedelta(minutes=slot_minutes)
 
-        days_output.append({"date": cur.isoformat(), "slots": day_slots})
+        days_output.append({
+            "date": cur.isoformat(),
+            "slots": day_slots
+        })
+
         cur = cur + timedelta(days=1)
 
     return {
