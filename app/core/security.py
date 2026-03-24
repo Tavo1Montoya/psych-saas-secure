@@ -14,7 +14,7 @@ from app.models.user import User
 import os
 SECRET_KEY = os.getenv("JWT_SECRET", "dev_only_change_me")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 43200
 
 # ==============================
 # 🔑 ENCRIPTACIÓN

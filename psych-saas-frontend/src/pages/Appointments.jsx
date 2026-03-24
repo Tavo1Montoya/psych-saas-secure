@@ -28,6 +28,8 @@ export default function Appointments() {
   const [date_from, setFrom] = useState("");
   const [date_to, setTo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchPatientModal, setSearchPatientModal] = useState("");
+  
 
   // status filter
   const [status, setStatus] = useState("");
@@ -86,9 +88,9 @@ export default function Appointments() {
   }
 
   async function loadPatients() {
-    const p = await PatientsAPI.list();
-    setPatients(p || []);
-  }
+  const data = await PatientsAPI.list();
+  setPatients(data || []);
+}
 
   // =========================
   // Cargar pacientes una vez
@@ -432,7 +434,18 @@ function getPatientLabel(appointment) {
     
 
       <option value="">Todos</option>
-      {patients.map((p) => (
+
+    {patients
+      .filter((p) => {
+        if (!searchPatientModal) return true;
+
+        const alias = (p.alias || "").toLowerCase();
+        const name = (p.full_name || p.name || "").toLowerCase();
+        const search = searchPatientModal.toLowerCase();
+
+        return alias.includes(search) || name.includes(search);
+      })
+      .map((p) => (
         <option key={p.id} value={p.id}>
           #{p.id} — {p.full_name || p.name}
         </option>
@@ -558,51 +571,93 @@ function getPatientLabel(appointment) {
       </div>
 
       {/* Modal Crear cita */}
-      <Modal
-        open={open}
-        title="Crear cita"
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button className="btn" onClick={() => setOpen(false)}>
-              Cancelar
-            </button>
-            <button className="btn btnPrimary" onClick={create}>
-              Crear
-            </button>
-          </>
-        }
-      >
-        <label className="label">Paciente</label>
-        <select
-          className="select"
-          value={patient_id}
-          onChange={(e) => setPatientId(e.target.value)}
-        >
-          <option value="">Selecciona…</option>
-          {patients.map((p) => (
-            <option key={p.id} value={p.id}>
-              #{p.id} — {p.full_name || p.name}
-            </option>
-          ))}
-        </select>
+    <Modal
+  open={open}
+  title="Crear cita"
+  onClose={() => setOpen(false)}
+  footer={
+    <>
+      <button className="btn" onClick={() => setOpen(false)}>
+        Cancelar
+      </button>
+      <button className="btn btnPrimary" onClick={create}>
+        Crear
+      </button>
+    </>
+  }
+>
+  <label className="label">Paciente</label>
 
-        <label className="label">Fecha/hora (local)</label>
-        <input
-          className="input"
-          type="datetime-local"
-          value={start_time}
-          onChange={(e) => setStartTime(e.target.value)}
-        />
+  <div style={{ position: "relative" }}>
+  <input
+    type="text"
+    placeholder="Buscar por alias o nombre..."
+    value={searchPatientModal}
+    onChange={(e) => setSearchPatientModal(e.target.value)}
+    className="input"
+  />
 
-        <label className="label">Duración (min)</label>
-        <input
-          className="input"
-          type="number"
-          value={duration_minutes}
-          onChange={(e) => setDuration(e.target.value)}
-        />
-      </Modal>
+  {searchPatientModal && (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: 0,
+        right: 0,
+        background: "#fff",
+        border: "1px solid #ddd",
+        borderRadius: 6,
+        maxHeight: 200,
+        overflowY: "auto",
+        zIndex: 10,
+      }}
+    >
+      {patients
+        .filter((p) => {
+          const alias = (p.alias || "").toLowerCase();
+          const name = (p.full_name || p.name || "").toLowerCase();
+          const search = searchPatientModal.toLowerCase();
+
+          return alias.includes(search) || name.includes(search);
+        })
+        .map((p) => (
+          <div
+            key={p.id}
+            onClick={() => {
+              setPatientId(p.id);
+              setSearchPatientModal(
+                `${p.alias ? p.alias + " - " : ""}${p.full_name || p.name}`
+              );
+            }}
+            style={{
+              padding: 10,
+              cursor: "pointer",
+              borderBottom: "1px solid #eee",
+            }}
+          >
+            {p.alias ? `${p.alias} - ` : ""}
+            {p.full_name || p.name}
+          </div>
+        ))}
+    </div>
+  )}
+</div>
+  <label className="label">Fecha/hora (local)</label>
+  <input
+    className="input"
+    type="datetime-local"
+    value={start_time}
+    onChange={(e) => setStartTime(e.target.value)}
+  />
+
+  <label className="label">Duración (min)</label>
+  <input
+    className="input"
+    type="number"
+    value={duration_minutes}
+    onChange={(e) => setDuration(e.target.value)}
+  />
+</Modal>
 
       {/* Modal Disponibilidad */}
       <Modal
