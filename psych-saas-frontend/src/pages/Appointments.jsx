@@ -416,8 +416,32 @@ function getPatientLabel(appointment) {
 
   <div style={{ minWidth: 260, flex: "1 1 260px" }}>
     <label className="label">Paciente</label>
-    <select className="select" value={patient_id} onChange={(e) => setPatientId(e.target.value)}>
-  {patient_id && (
+   <select
+  className="select"
+  value={patient_id}
+  onChange={(e) => setPatientId(e.target.value)}
+>
+  <option value="">Todos</option>
+
+  {patients
+    .filter((p) => {
+      if (!searchPatientModal) return true;
+
+      const alias = (p.alias || "").toLowerCase();
+      const name = (p.full_name || p.name || "").toLowerCase();
+      const search = searchPatientModal.toLowerCase();
+
+      return alias.includes(search) || name.includes(search);
+    })
+    .map((p) => (
+      <option key={p.id} value={p.id}>
+        #{p.id} — {p.full_name || p.name}
+      </option>
+    ))}
+</select>
+
+{/* ✅ AQUÍ VA EL MENSAJE (FUERA DEL SELECT) */}
+{patient_id && (
   <div style={{ marginTop: 6, color: "var(--muted)" }}>
     {(() => {
       const month = dayjs(start_time || new Date()).format("YYYY-MM");
